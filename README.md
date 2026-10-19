@@ -1,16 +1,36 @@
-# React + Vite
+# Folio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Un lector sencillo de PDF con controles de navegación y transición animada entre páginas.
 
-Currently, two official plugins are available:
+## Tecnologías
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + Vite
+- React-PDF / PDF.js para mostrar documentos
+- Motion para animar el cambio de página
+- Lucide para los iconos
 
-## React Compiler
+## Estructura de `src`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `App.jsx`: pantalla principal y estado de la aplicación
+- `main.jsx`: punto de entrada de React
+- `components/`: componentes reutilizables, como el lector PDF
+- `styles/`: estilos de la aplicación y estilos globales
+- `assets/`: recursos estáticos
 
-## Expanding the ESLint configuration
+## Desarrollo local
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```sh
+npm install
+npm run dev
+```
+
+Selecciona un PDF en la página o arrástralo al área de carga. El documento se procesa en el navegador y no se sube ni se guarda en un servidor.
+
+## Producción
+
+```sh
+npm run build
+npm run preview
+```
+
+El proyecto puede desplegarse en Vercel. La carga actual es local: para guardar libros, generar enlaces compartibles o administrar usuarios habrá que conectar almacenamiento persistente. Supabase ofrece almacenamiento y base de datos; Vercel Blob es almacenamiento de archivos, no una base de datos.
