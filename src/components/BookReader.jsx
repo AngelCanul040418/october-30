@@ -10,6 +10,21 @@ import {
 
 const PdfBook = lazy(() => import('./PdfBook.jsx'))
 
+const backgroundStickers = [
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-a' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-b' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-c' },
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-d' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-e' },
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-f' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-g' },
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-h' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-i' },
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-j' },
+  { src: '/sticker-fondo-2.png', className: 'stage-sticker-k' },
+  { src: '/sticker-fondo-1.png', className: 'stage-sticker-l' },
+]
+
 function formatFileSize(bytes) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -154,6 +169,18 @@ function BookReader({
 
       <div className="book-stage" ref={bookRef}>
         <span className="stage-glow" />
+        {!onClose && (
+          <div className="stage-stickers" aria-hidden="true">
+            {backgroundStickers.map((sticker) => (
+              <img
+                key={sticker.className}
+                className={sticker.className}
+                src={sticker.src}
+                alt=""
+              />
+            ))}
+          </div>
+        )}
         <button
           className="page-arrow page-arrow-left"
           onClick={() => flipBookRef.current?.previous()}
