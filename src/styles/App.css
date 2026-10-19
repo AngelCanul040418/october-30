@@ -1372,6 +1372,11 @@
   background: #fff5f7;
 }
 
+.reader-card-shared .flipbook-closed-start:not(.flipbook-turning) .flipbook-page-padding,
+.reader-card-shared .flipbook-closed-end:not(.flipbook-turning) .flipbook-page-padding {
+  background: transparent;
+}
+
 .reader-card-shared .page-arrow {
   z-index: 3;
   border-color: #f0d3dc;

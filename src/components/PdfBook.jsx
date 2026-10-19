@@ -96,6 +96,7 @@ const PdfBook = forwardRef(function PdfBook(
   const [isReady, setIsReady] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [closedPosition, setClosedPosition] = useState('')
+  const [isTurning, setIsTurning] = useState(false)
   const cacheRef = useRef(new Map())
   const pageAssetsRef = useRef(new Map())
   const pageNodesRef = useRef([])
@@ -340,6 +341,7 @@ const PdfBook = forwardRef(function PdfBook(
   const handleStateChange = useCallback((event) => {
     const isBusy = event.data !== 'read'
     busyRef.current = isBusy
+    setIsTurning(isBusy)
     callbacksRef.current.onBusyChange(isBusy)
 
     if (!isBusy && pdf) {
@@ -424,7 +426,7 @@ const PdfBook = forwardRef(function PdfBook(
         <div className="flipbook-host">
           <HTMLFlipBook
             ref={bookRef}
-            className={`flipbook ${closedPosition}`}
+            className={`flipbook ${closedPosition}${isTurning ? ' flipbook-turning' : ''}`}
             style={{ width: '100%', height: pageHeight, '--flipbook-page-width': `${pageWidth}px` }}
             width={pageWidth}
             height={pageHeight}
