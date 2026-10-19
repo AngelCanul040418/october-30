@@ -25,20 +25,23 @@ function BookReader({
   canSave,
   onSave,
   onClose,
-  error,
   onLoadError,
 }) {
   const [pageCount, setPageCount] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
+  const [pageRatio, setPageRatio] = useState(1.414)
+  const [orientation, setOrientation] = useState('portrait')
+  const [isTurning, setIsTurning] = useState(false)
   const [pageWidth, setPageWidth] = useState(640)
   const bookRef = useRef(null)
+  const flipBookRef = useRef(null)
 
   useEffect(() => {
     const element = bookRef.current
     if (!element) return undefined
 
     const observer = new ResizeObserver(([entry]) => {
-      setPageWidth(Math.max(240, Math.min(entry.contentRect.width - 40, 720)))
+      setPageWidth(Math.max(180, Math.min((entry.contentRect.width - 40) / 2, 520)))
     })
 
     observer.observe(element)
@@ -54,20 +57,27 @@ function BookReader({
       ) return
 
       if (event.key === 'ArrowRight') {
-        setPageNumber((current) => Math.min(current + 1, pageCount || current + 1))
+        flipBookRef.current?.next()
       }
       if (event.key === 'ArrowLeft') {
-        setPageNumber((current) => Math.max(current - 1, 1))
+        flipBookRef.current?.previous()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [pageCount])
+  }, [])
 
-  function handlePageCount({ numPages }) {
+  function handlePageCount({ numPages, pageRatio: nextPageRatio }) {
     setPageCount(numPages)
+    setPageRatio(nextPageRatio)
+    setOrientation(window.matchMedia('(min-width: 680px)').matches ? 'landscape' : 'portrait')
     setPageNumber((current) => Math.min(current, numPages))
+  }
+
+  function handlePageChange(nextPage, nextOrientation) {
+    setPageNumber(nextPage)
+    setOrientation(nextOrientation)
   }
 
   function downloadPdf() {
@@ -133,27 +143,29 @@ function BookReader({
         <span className="stage-glow" />
         <button
           className="page-arrow page-arrow-left"
-          onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
-          disabled={pageNumber <= 1}
+          onClick={() => flipBookRef.current?.previous()}
+          disabled={pageNumber <= 1 || isTurning}
           aria-label="Página anterior"
         >
           <ArrowLeft size={19} />
         </button>
         <Suspense fallback={<div className="page-loading"><span className="spinner" /> Preparando tu libro...</div>}>
           <PdfBook
+            ref={flipBookRef}
             key={file instanceof Blob ? `${file.name}-${file.size}-${file.lastModified}` : file}
             file={file}
-            pageNumber={pageNumber}
             pageWidth={pageWidth}
+            pageHeight={pageWidth * pageRatio}
             onLoadSuccess={handlePageCount}
             onLoadError={onLoadError}
-            error={error}
+            onPageChange={handlePageChange}
+            onBusyChange={setIsTurning}
           />
         </Suspense>
         <button
           className="page-arrow page-arrow-right"
-          onClick={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-          disabled={!pageCount || pageNumber >= pageCount}
+          onClick={() => flipBookRef.current?.next()}
+          disabled={!pageCount || pageNumber >= pageCount || isTurning}
           aria-label="Página siguiente"
         >
           <ArrowRight size={19} />
@@ -162,7 +174,12 @@ function BookReader({
 
       <div className="reader-controls">
         <div className="page-counter">
-          <span className="current-page">{pageNumber.toString().padStart(2, '0')}</span>
+          <span className="current-page">
+            {pageNumber.toString().padStart(2, '0')}
+            {orientation === 'landscape' && pageNumber > 1 && pageNumber < pageCount
+              ? `–${(pageNumber + 1).toString().padStart(2, '0')}`
+              : ''}
+          </span>
           <span className="page-divider">/</span>
           <span>{pageCount ? pageCount.toString().padStart(2, '0') : '--'}</span>
         </div>
@@ -172,21 +189,21 @@ function BookReader({
           min="1"
           max={Math.max(pageCount, 1)}
           value={pageNumber}
-          onChange={(event) => setPageNumber(Number(event.target.value))}
+          onChange={(event) => flipBookRef.current?.goToPage(Number(event.target.value))}
           aria-label="Seleccionar página"
           style={{ '--progress': `${pageCount > 1 ? ((pageNumber - 1) / (pageCount - 1)) * 100 : 0}%` }}
         />
         <div className="control-buttons">
           <button
             className="control-button"
-            onClick={() => setPageNumber((current) => Math.max(1, current - 1))}
+            onClick={() => flipBookRef.current?.previous()}
             disabled={pageNumber <= 1}
           >
             <ArrowLeft size={16} /> Anterior
           </button>
           <button
             className="control-button next-button"
-            onClick={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+            onClick={() => flipBookRef.current?.next()}
             disabled={!pageCount || pageNumber >= pageCount}
           >
             Siguiente <ArrowRight size={16} />

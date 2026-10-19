@@ -6,7 +6,7 @@ Panel privado para subir libros PDF y crear enlaces de lectura compartibles. El 
 
 - React + Vite
 - PDF.js para renderizar y precargar páginas
-- Motion para animar el cambio de página
+- StPageFlip / React PageFlip para animar el giro físico de las hojas
 - Lucide para los iconos
 
 ## Estructura de `src`
