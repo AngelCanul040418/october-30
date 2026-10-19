@@ -49,12 +49,12 @@ function renderPage(pdf, pageNumber, width) {
 }
 
 const FlipPage = forwardRef(function FlipPage(
-  { pageIndex, nodesRef, assetsRef },
+  { pageIndex, pageNumber, nodesRef, assetsRef },
   forwardedRef,
 ) {
   const setRef = useCallback((node) => {
     const image = node?.querySelector('img')
-    const asset = assetsRef.current.get(pageIndex + 1)
+    const asset = pageNumber ? assetsRef.current.get(pageNumber) : null
 
     if (node) {
       nodesRef.current[pageIndex] = node
@@ -65,7 +65,7 @@ const FlipPage = forwardRef(function FlipPage(
 
     if (typeof forwardedRef === 'function') forwardedRef(node)
     else if (forwardedRef) forwardedRef.current = node
-  }, [assetsRef, forwardedRef, nodesRef, pageIndex])
+  }, [assetsRef, forwardedRef, nodesRef, pageIndex, pageNumber])
 
   return (
     <div
@@ -73,7 +73,7 @@ const FlipPage = forwardRef(function FlipPage(
       className="flipbook-page"
       data-density="soft"
     >
-      <img alt="" draggable="false" />
+      {pageNumber && <img alt="" draggable="false" />}
     </div>
   )
 })
@@ -109,7 +109,7 @@ const PdfBook = forwardRef(function PdfBook(
 
   const applyPageAsset = useCallback((pageNumber, asset) => {
     pageAssetsRef.current.set(pageNumber, asset)
-    const image = pageNodesRef.current[pageNumber - 1]?.querySelector('img')
+    const image = pageNodesRef.current[pageNumber]?.querySelector('img')
     if (image && image.src !== asset.url) image.src = asset.url
   }, [])
 
@@ -151,7 +151,7 @@ const PdfBook = forwardRef(function PdfBook(
       assetPromise.then((asset) => {
         if (pageAssetsRef.current.get(cachedPage)?.url === asset.url) {
           pageAssetsRef.current.delete(cachedPage)
-          const image = pageNodesRef.current[cachedPage - 1]?.querySelector('img')
+          const image = pageNodesRef.current[cachedPage]?.querySelector('img')
           if (image?.src === asset.url) image.removeAttribute('src')
         }
         URL.revokeObjectURL(asset.url)
@@ -235,26 +235,47 @@ const PdfBook = forwardRef(function PdfBook(
   const pages = useMemo(() => {
     if (!isReady) return []
 
-    return Array.from({ length: pageCount }, (_, pageIndex) => (
+    return [
       <FlipPage
-        key={pageIndex}
-        pageIndex={pageIndex}
+        key="inside-cover"
+        pageIndex={0}
+        pageNumber={null}
         nodesRef={pageNodesRef}
         assetsRef={pageAssetsRef}
-      />
-    ))
+      />,
+      ...Array.from({ length: pageCount }, (_, index) => (
+        <FlipPage
+          key={index + 1}
+          pageIndex={index + 1}
+          pageNumber={index + 1}
+          nodesRef={pageNodesRef}
+          assetsRef={pageAssetsRef}
+        />
+      )),
+      ...(pageCount % 2 === 0
+        ? [(
+          <FlipPage
+            key="inside-back-cover"
+            pageIndex={pageCount + 1}
+            pageNumber={null}
+            nodesRef={pageNodesRef}
+            assetsRef={pageAssetsRef}
+          />
+        )]
+        : []),
+    ]
   }, [isReady, pageCount])
 
   const updatePage = useCallback((pageIndex, orientation = orientationRef.current) => {
     pageIndexRef.current = pageIndex
     orientationRef.current = orientation
-    callbacksRef.current.onPageChange(pageIndex + 1, orientation)
+    callbacksRef.current.onPageChange(Math.max(1, pageIndex), orientation)
 
     if (pdf) {
       const visiblePages = orientation === 'landscape'
         ? [pageIndex, pageIndex + 1, pageIndex + 2, pageIndex + 3]
         : [pageIndex, pageIndex + 1, pageIndex - 1]
-      preparePages(pdf, visiblePages.map((index) => index + 1))
+      preparePages(pdf, visiblePages)
         .then(() => pruneCache(pageIndex + 1))
         .catch((renderError) => callbacksRef.current.onLoadError(renderError))
     }
@@ -268,16 +289,28 @@ const PdfBook = forwardRef(function PdfBook(
 
   const handleInit = useCallback((event) => {
     const flip = bookRef.current?.pageFlip()
-    if (flip && pageCount > 0) {
-      // Keep single-page bookends while letting both bend like regular sheets.
-      flip.getPage(0).setDensity('soft')
-      flip.getPage(pageCount - 1).setDensity('soft')
+    if (flip && event.data.mode === 'portrait') {
+      flip.turnToPage(1)
+      updatePage(1, event.data.mode)
+      return
     }
     updatePage(event.data.page ?? 0, event.data.mode)
-  }, [pageCount, updatePage])
+  }, [updatePage])
+
+  const handleUpdate = useCallback((event) => {
+    updatePage(event.data.page ?? 0, event.data.mode)
+  }, [updatePage])
 
   const handleOrientation = useCallback((event) => {
-    updatePage(pageIndexRef.current, event.data)
+    const flip = bookRef.current?.pageFlip()
+    if (!flip) return
+
+    const currentPage = Math.max(1, pageIndexRef.current)
+    const targetPage = event.data === 'landscape'
+      ? currentPage - (currentPage % 2)
+      : currentPage
+    flip.turnToPage(targetPage)
+    updatePage(flip.getCurrentPageIndex(), event.data)
   }, [updatePage])
 
   const handleStateChange = useCallback((event) => {
@@ -300,11 +333,11 @@ const PdfBook = forwardRef(function PdfBook(
     const orientation = flip.getOrientation()
     const destinationPage = orientation === 'landscape'
       ? direction > 0
-        ? currentPage === 0 ? 1 : currentPage + 2
-        : currentPage <= 1 ? 0 : currentPage - 2
+        ? currentPage === 0 ? 2 : currentPage + 2
+        : currentPage <= 2 ? 0 : currentPage - 2
       : currentPage + direction
 
-    if (destinationPage < 0 || destinationPage >= pageCount) return
+    if (destinationPage < 0 || destinationPage > pageCount) return
 
     busyRef.current = true
     callbacksRef.current.onBusyChange(true)
@@ -312,7 +345,7 @@ const PdfBook = forwardRef(function PdfBook(
       const pagesToPrepare = orientation === 'landscape'
         ? [destinationPage, destinationPage + 1, destinationPage + 2]
         : [destinationPage, destinationPage + 1]
-      await preparePages(pdf, pagesToPrepare.map((index) => index + 1))
+      await preparePages(pdf, pagesToPrepare)
       if (direction > 0) flip.flipNext()
       else flip.flipPrev()
     } catch (renderError) {
@@ -326,15 +359,18 @@ const PdfBook = forwardRef(function PdfBook(
     const flip = bookRef.current?.pageFlip()
     if (!flip || !pdf || busyRef.current) return
 
-    const targetPage = Math.max(0, Math.min(pageCount - 1, pageNumber - 1))
+    const targetPage = Math.max(1, Math.min(pageCount, pageNumber))
+    const targetSpreadStart = orientationRef.current === 'landscape'
+      ? targetPage - (targetPage % 2)
+      : targetPage
     busyRef.current = true
     callbacksRef.current.onBusyChange(true)
     try {
       const targetSpread = orientationRef.current === 'landscape'
-        ? targetPage === 0 ? [0] : [targetPage - ((targetPage - 1) % 2), targetPage + 1]
+        ? [targetSpreadStart, targetSpreadStart + 1]
         : [targetPage]
-      await preparePages(pdf, targetSpread.map((index) => index + 1))
-      flip.turnToPage(targetPage)
+      await preparePages(pdf, targetSpread)
+      flip.turnToPage(targetSpreadStart)
       const current = flip.getCurrentPageIndex()
       updatePage(current, flip.getOrientation())
     } catch (renderError) {
@@ -375,11 +411,12 @@ const PdfBook = forwardRef(function PdfBook(
             usePortrait
             autoSize={false}
             maxShadowOpacity={0.72}
-            showCover
+            showCover={false}
             mobileScrollSupport
             useMouseEvents
             showPageCorners={false}
             onInit={handleInit}
+            onUpdate={handleUpdate}
             onFlip={handleFlip}
             onChangeOrientation={handleOrientation}
             onChangeState={handleStateChange}
