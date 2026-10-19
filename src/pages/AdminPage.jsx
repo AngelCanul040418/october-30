@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, FileText, Pencil, Trash2, Upload, X } from 'lucide-react'
+import { ArrowLeft, Check, Copy, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import BookReader from '../components/BookReader.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import {
@@ -33,11 +33,23 @@ function AdminPage() {
   const [books, setBooks] = useState([])
   const [loadingBooks, setLoadingBooks] = useState(false)
   const [editingBook, setEditingBook] = useState(null)
+  const [activeView, setActiveView] = useState('dashboard')
   const [deletingBookId, setDeletingBookId] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedBookId, setCopiedBookId] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const uploadRef = useRef(null)
+
+  useEffect(() => {
+    if (!editingBook) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' && !saving) setEditingBook(null)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [editingBook, saving])
 
   const fetchBooks = useCallback(async () => {
     if (!supabase) return []
@@ -177,10 +189,7 @@ function AdminPage() {
     }
 
     setFile(nextFile)
-    setBookTitle(nextFile.name.replace(/\.pdf$/i, '').trim())
-    setSubtitle('')
-    setDescription('')
-    setAuthor('')
+    setBookTitle((currentTitle) => currentTitle.trim() || nextFile.name.replace(/\.pdf$/i, '').trim())
     setShareUrl('')
     setEditingBook(null)
     setError('')
@@ -259,6 +268,31 @@ function AdminPage() {
     setError('')
     setFile(null)
     setShareUrl('')
+    setActiveView('dashboard')
+  }
+
+  function startNewBook() {
+    setFile(null)
+    setBookTitle('')
+    setSubtitle('')
+    setDescription('')
+    setAuthor('')
+    setShareUrl('')
+    setEditingBook(null)
+    setError('')
+    setActiveView('create')
+  }
+
+  function returnToDashboard() {
+    setFile(null)
+    setBookTitle('')
+    setSubtitle('')
+    setDescription('')
+    setAuthor('')
+    setShareUrl('')
+    setEditingBook(null)
+    setError('')
+    setActiveView('dashboard')
   }
 
   async function updateBook(event) {
@@ -394,15 +428,17 @@ function AdminPage() {
     <div className="app-shell">
       <SiteHeader note="Administración" onSignOut={user ? signOut : undefined} />
       <main className="main-content">
-        <section className="intro">
-          <p className="eyebrow"><span /> ADMINISTRACIÓN</p>
-          <h1>{user ? 'Subir y revisar el PDF' : 'Panel privado'}</h1>
-          <p className="intro-copy">
-            {user
-              ? 'Carga el libro aquí y comparte el enlace de lectura con quien quieras.'
-              : 'Inicia sesión para administrar tus libros.'}
-          </p>
-        </section>
+        {(!user || activeView === 'create') && (
+          <section className="intro">
+            <p className="eyebrow"><span /> ADMINISTRACIÓN</p>
+            <h1>{user ? 'Nuevo libro digital' : 'Panel privado'}</h1>
+            <p className="intro-copy">
+              {user
+                ? 'Sube el PDF y agrega los detalles que aparecerán en la página de lectura.'
+                : 'Inicia sesión para administrar tus libros.'}
+            </p>
+          </section>
+        )}
 
         {!isSupabaseConfigured ? (
           <div className="admin-notice" role="alert">
@@ -441,203 +477,238 @@ function AdminPage() {
           </section>
         ) : (
           <>
-            <p className="admin-notice" role="note">
-              Los enlaces de lectura permiten ver el libro a quien los tenga. No los compartas si el documento es confidencial.
-            </p>
-            {editingBook ? (
-              <form className="metadata-editor" onSubmit={updateBook}>
-                <div className="catalog-heading">
-                  <div>
-                    <p className="eyebrow">EDITAR LIBRO</p>
-                    <h2>{editingBook.title}</h2>
-                  </div>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    onClick={() => {
-                      setEditingBook(null)
-                      setError('')
-                    }}
-                    aria-label="Cancelar edición"
-                    title="Cancelar"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                {renderMetadataFields()}
-                <div className="metadata-form-actions">
-                  <button className="primary-button" type="submit" disabled={saving || !bookTitle.trim()}>
-                    {saving ? 'Guardando…' : 'Guardar cambios'}
-                  </button>
-                  <a className="secondary-button catalog-open-link" href={createShareUrl(editingBook)} target="_blank" rel="noreferrer">
-                    Abrir enlace actual
-                  </a>
-                </div>
-                {error && <p className="error-message upload-error" role="alert">{error}</p>}
-              </form>
-            ) : file ? (
+            {activeView === 'dashboard' ? (
               <>
+                <div className="dashboard-heading">
+                  <div>
+                    <p className="eyebrow">BIBLIOTECA</p>
+                    <h2>Todos tus libros</h2>
+                    <p>Administra tus publicaciones y comparte sus enlaces.</p>
+                  </div>
+                  <button className="primary-button" onClick={startNewBook}>
+                    <Plus size={17} />
+                    Nuevo libro digital
+                  </button>
+                </div>
+                {error && <p className="error-message catalog-error" role="alert">{error}</p>}
+                {error.includes('libros') && (
+                  <p className="catalog-help">
+                    Comprueba que hayas ejecutado el SQL actualizado de <code>supabase/setup.sql</code> en Supabase.
+                  </p>
+                )}
+                {loadingBooks && books.length === 0 ? (
+                  <section className="book-catalog catalog-empty"><p className="catalog-message">Cargando tus libros…</p></section>
+                ) : books.length === 0 ? (
+                  <section className="book-catalog catalog-empty">
+                    <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
+                    <h2>Aún no tienes libros</h2>
+                    <p className="upload-description">Agrega tu primer libro digital para crear un enlace de lectura.</p>
+                    <button className="primary-button" onClick={startNewBook}>
+                      <Plus size={17} />
+                      Agregar nuevo libro digital
+                    </button>
+                  </section>
+                ) : (
+                  <section className="book-catalog" aria-labelledby="catalog-title">
+                    <div className="catalog-heading">
+                      <h2 id="catalog-title">Libros en tu biblioteca</h2>
+                      <span className="catalog-count">{books.length}</span>
+                    </div>
+                    <ul className="book-list">
+                      {books.map((book) => (
+                        <li className="book-list-item" key={book.id}>
+                          <div className="book-list-info">
+                            <span className="book-list-icon"><FileText size={17} /></span>
+                            <div className="book-list-copy">
+                              <strong>{book.title}</strong>
+                              <span>
+                                {[book.author, book.subtitle].filter(Boolean).join(' · ') || 'PDF'}
+                                {!book.hasMetadata && ' · Completa los detalles'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="book-list-actions">
+                            <a
+                              className="secondary-button catalog-open-link"
+                              href={createShareUrl(book)}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`Abrir ${book.title}`}
+                            >
+                              Abrir
+                            </a>
+                            <button
+                              className="icon-button catalog-action"
+                              onClick={() => copyBookLink(book)}
+                              aria-label={`Copiar enlace de ${book.title}`}
+                              title="Copiar enlace"
+                            >
+                              {copiedBookId === book.id ? <Check size={17} /> : <Copy size={17} />}
+                            </button>
+                            <button
+                              className="icon-button catalog-action"
+                              onClick={() => startEditing(book)}
+                              aria-label={`Editar ${book.title}`}
+                              title="Editar detalles"
+                            >
+                              <Pencil size={17} />
+                            </button>
+                            <button
+                              className="icon-button catalog-action catalog-delete"
+                              onClick={() => deleteBook(book)}
+                              disabled={deletingBookId === book.id}
+                              aria-label={`Eliminar ${book.title}`}
+                              title="Eliminar libro"
+                            >
+                              {deletingBookId === book.id ? <span className="spinner" /> : <Trash2 size={17} />}
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                <p className="admin-notice dashboard-notice" role="note">
+                  Los enlaces permiten leer el libro a quien los tenga. No compartas enlaces a documentos confidenciales.
+                </p>
+              </>
+            ) : (
+              <>
+                <button className="back-to-library" onClick={returnToDashboard}>
+                  <ArrowLeft size={16} />
+                  Volver a mis libros
+                </button>
+                <p className="admin-notice" role="note">
+                  Los enlaces de lectura permiten ver el libro a quien los tenga. No los compartas si el documento es confidencial.
+                </p>
                 <section className="metadata-editor upload-metadata">
                   <div className="catalog-heading">
                     <div>
                       <p className="eyebrow">DETALLES DEL LIBRO</p>
-                      <h2>{shareUrl ? 'Libro guardado' : 'Completa la información'}</h2>
+                      <h2>{shareUrl ? 'Libro guardado' : 'Información del libro'}</h2>
                     </div>
                   </div>
                   {renderMetadataFields(Boolean(shareUrl))}
                 </section>
-                <BookReader
-                  file={file}
-                  fileName={file.name}
-                  bookTitle={bookTitle}
-                  fileSize={file.size}
-                  shareUrl={shareUrl}
-                  saving={saving}
-                  canSave={Boolean(bookTitle.trim()) && !shareUrl}
-                  onSave={saveAndCreateLink}
-                  onClose={() => {
-                    setFile(null)
-                    setShareUrl('')
-                    setError('')
-                  }}
-                  error={error}
-                  onLoadError={() => setError('No pudimos abrir este PDF. Comprueba que no esté dañado o protegido.')}
-                />
-                {shareUrl && (
-                  <section className="share-card" aria-label="Enlace compartible">
-                    <div>
-                      <h2>Tu libro ya está en línea</h2>
-                      <p>Cualquier persona con este enlace puede abrirlo.</p>
+                {file ? (
+                  <>
+                    <BookReader
+                      file={file}
+                      fileName={file.name}
+                      bookTitle={bookTitle}
+                      fileSize={file.size}
+                      shareUrl={shareUrl}
+                      saving={saving}
+                      canSave={Boolean(bookTitle.trim()) && !shareUrl}
+                      onSave={saveAndCreateLink}
+                      onClose={() => {
+                        setFile(null)
+                        setShareUrl('')
+                        setError('')
+                      }}
+                      onLoadError={() => setError('No pudimos abrir este PDF. Comprueba que no esté dañado o protegido.')}
+                    />
+                    {shareUrl && (
+                      <section className="share-card" aria-label="Enlace compartible">
+                        <div>
+                          <h2>Tu libro ya está en línea</h2>
+                          <p>Cualquier persona con este enlace puede abrirlo.</p>
+                        </div>
+                        <div className="share-link-row">
+                          <a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
+                          <button className="icon-button" onClick={copyShareLink} aria-label="Copiar enlace">
+                            {copied ? <Check size={18} /> : <Copy size={18} />}
+                          </button>
+                        </div>
+                      </section>
+                    )}
+                    {error && <p className="error-message upload-error" role="alert">{error}</p>}
+                  </>
+                ) : (
+                  <section
+                    className={`upload-card${isDragging ? ' is-dragging' : ''}`}
+                    onDragEnter={(event) => {
+                      event.preventDefault()
+                      setIsDragging(true)
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false)
+                    }}
+                    onDrop={handleDrop}
+                  >
+                    <div className="upload-illustration">
+                      <div className="upload-paper"><FileText size={27} strokeWidth={1.7} /></div>
+                      <span className="upload-spark spark-one" />
+                      <span className="upload-spark spark-two" />
                     </div>
-                    <div className="share-link-row">
-                      <a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
-                      <button className="icon-button" onClick={copyShareLink} aria-label="Copiar enlace">
-                        {copied ? <Check size={18} /> : <Copy size={18} />}
-                      </button>
-                    </div>
+                    <h2>Selecciona el PDF del libro</h2>
+                    <p className="upload-description">Elige un documento para agregarlo a tu biblioteca.</p>
+                    <button className="primary-button" onClick={() => uploadRef.current?.click()}>
+                      <Upload size={17} />
+                      Seleccionar PDF
+                    </button>
+                    <input
+                      ref={uploadRef}
+                      className="visually-hidden"
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={handleFileChange}
+                      aria-label="Elegir un archivo PDF"
+                    />
+                    <p className="file-hint"><Check size={14} /> PDF de hasta 50 MB.</p>
+                    {error && <p className="error-message" role="alert">{error}</p>}
                   </section>
                 )}
-                {error && <p className="error-message upload-error" role="alert">{error}</p>}
-                <button
-                  className="secondary-button replace-button"
-                  onClick={() => {
-                    setFile(null)
-                    setShareUrl('')
-                    setError('')
-                  }}
-                >
-                  Elegir otro PDF
-                </button>
               </>
-            ) : (
-              <section
-                className={`upload-card${isDragging ? ' is-dragging' : ''}`}
-                onDragEnter={(event) => {
-                  event.preventDefault()
-                  setIsDragging(true)
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDragLeave={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false)
-                }}
-                onDrop={handleDrop}
-              >
-                <div className="upload-illustration">
-                  <div className="upload-paper"><FileText size={27} strokeWidth={1.7} /></div>
-                  <span className="upload-spark spark-one" />
-                  <span className="upload-spark spark-two" />
-                </div>
-                <h2>Selecciona el PDF del libro</h2>
-                <p className="upload-description">Elige un documento para revisarlo y crear su enlace.</p>
-                <button className="primary-button" onClick={() => uploadRef.current?.click()}>
-                  <Upload size={17} />
-                  Seleccionar PDF
-                </button>
-                <input
-                  ref={uploadRef}
-                  className="visually-hidden"
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={handleFileChange}
-                  aria-label="Elegir un archivo PDF"
-                />
-                <p className="file-hint"><Check size={14} /> PDF de hasta 50 MB.</p>
-                {error && <p className="error-message" role="alert">{error}</p>}
-              </section>
             )}
-            <section className="book-catalog" aria-labelledby="catalog-title">
-              <div className="catalog-heading">
-                <div>
-                  <p className="eyebrow">BIBLIOTECA</p>
-                  <h2 id="catalog-title">Tus libros</h2>
-                </div>
-                <span className="catalog-count">{books.length}</span>
+            {editingBook && activeView === 'dashboard' && (
+              <div
+                className="modal-backdrop"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget && !saving) setEditingBook(null)
+                }}
+              >
+                <form
+                  className="metadata-editor edit-book-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="edit-book-title"
+                  onSubmit={updateBook}
+                >
+                  <div className="catalog-heading">
+                    <div>
+                      <p className="eyebrow">DETALLES DEL LIBRO</p>
+                      <h2 id="edit-book-title">Editar libro</h2>
+                    </div>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => setEditingBook(null)}
+                      disabled={saving}
+                      aria-label="Cerrar edición"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  {renderMetadataFields()}
+                  <div className="metadata-form-actions">
+                    <button className="primary-button" type="submit" disabled={saving || !bookTitle.trim()}>
+                      {saving ? 'Guardando…' : 'Guardar cambios'}
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setEditingBook(null)}
+                      disabled={saving}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                  {error && <p className="error-message upload-error" role="alert">{error}</p>}
+                </form>
               </div>
-              {error && !file && !editingBook && <p className="error-message catalog-error" role="alert">{error}</p>}
-              {error.includes('libros') && !file && !editingBook && (
-                <p className="catalog-help">
-                  Comprueba que hayas ejecutado el SQL actualizado de <code>supabase/setup.sql</code> en Supabase.
-                </p>
-              )}
-              {loadingBooks && books.length === 0 ? (
-                <p className="catalog-message">Cargando tus libros…</p>
-              ) : books.length === 0 ? (
-                <p className="catalog-message">Todavía no has guardado ningún libro.</p>
-              ) : (
-                <ul className="book-list">
-                  {books.map((book) => (
-                    <li className="book-list-item" key={book.id}>
-                      <div className="book-list-info">
-                        <span className="book-list-icon"><FileText size={17} /></span>
-                        <div className="book-list-copy">
-                          <strong>{book.title}</strong>
-                          <span>
-                            {[book.author, book.subtitle].filter(Boolean).join(' · ') || 'PDF'}
-                            {!book.hasMetadata && ' · Completa los detalles'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="book-list-actions">
-                        <a
-                          className="secondary-button catalog-open-link"
-                          href={createShareUrl(book)}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`Abrir ${book.title}`}
-                        >
-                          Abrir
-                        </a>
-                        <button
-                          className="icon-button catalog-action"
-                          onClick={() => copyBookLink(book)}
-                          aria-label={`Copiar enlace de ${book.title}`}
-                          title="Copiar enlace"
-                        >
-                          {copiedBookId === book.id ? <Check size={17} /> : <Copy size={17} />}
-                        </button>
-                        <button
-                          className="icon-button catalog-action"
-                          onClick={() => startEditing(book)}
-                          aria-label={`Editar ${book.title}`}
-                          title="Editar detalles"
-                        >
-                          <Pencil size={17} />
-                        </button>
-                        <button
-                          className="icon-button catalog-action catalog-delete"
-                          onClick={() => deleteBook(book)}
-                          disabled={deletingBookId === book.id}
-                          aria-label={`Eliminar ${book.title}`}
-                          title="Eliminar libro"
-                        >
-                          {deletingBookId === book.id ? <span className="spinner" /> : <Trash2 size={17} />}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            )}
           </>
         )}
         <footer className="page-footer"><span>Lector privado · Enlace de lectura compartible</span></footer>

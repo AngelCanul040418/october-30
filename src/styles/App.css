@@ -369,6 +369,37 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
+.dashboard-heading {
+  margin: 25px 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dashboard-heading .eyebrow {
+  margin-bottom: 8px;
+}
+
+.dashboard-heading h2 {
+  margin: 0;
+  color: #222c27;
+  font-family: var(--font-display);
+  font-size: clamp(27px, 3.2vw, 35px);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.dashboard-heading p:not(.eyebrow) {
+  margin: 7px 0 0;
+  color: #797b75;
+  font-size: 13px;
+}
+
+.dashboard-heading .primary-button {
+  flex: 0 0 auto;
+}
+
 .metadata-editor .eyebrow,
 .book-catalog .eyebrow {
   margin: 0 0 7px;
@@ -464,6 +495,97 @@
   border: 1px solid #e9e7e1;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.82);
+}
+
+.book-catalog .catalog-heading {
+  margin-bottom: 4px;
+}
+
+.book-catalog .catalog-heading h2 {
+  font-size: 15px;
+}
+
+.catalog-empty {
+  min-height: 290px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.catalog-empty .upload-illustration {
+  margin-bottom: 15px;
+}
+
+.catalog-empty h2 {
+  margin: 0;
+  color: #27332c;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.catalog-empty .upload-description {
+  max-width: 360px;
+  margin-bottom: 17px;
+}
+
+.dashboard-notice {
+  margin-top: 18px;
+}
+
+.back-to-library {
+  margin: -20px 0 20px;
+  padding: 7px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  color: #58705d;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.back-to-library:hover {
+  color: #294d3d;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(25, 32, 27, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.edit-book-modal {
+  width: min(100%, 560px);
+  max-height: min(760px, calc(100vh - 48px));
+  padding: 25px;
+  margin: auto;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(23, 31, 26, 0.2);
+}
+
+.edit-book-modal .catalog-heading h2 {
+  font-size: 22px;
+}
+
+.edit-book-modal .catalog-heading .icon-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .catalog-count {
@@ -1167,6 +1289,31 @@
   .metadata-editor,
   .book-catalog {
     padding: 17px;
+  }
+
+  .dashboard-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .dashboard-heading .primary-button {
+    width: 100%;
+  }
+
+  .back-to-library {
+    margin-top: -17px;
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+    align-items: end;
+  }
+
+  .edit-book-modal {
+    max-height: calc(100vh - 24px);
+    padding: 19px;
+    border-radius: 14px 14px 10px 10px;
   }
 
   .metadata-form-grid {

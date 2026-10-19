@@ -31,7 +31,7 @@ npm run dev
 3. En Supabase Auth, crea manualmente tu cuenta administradora y desactiva el registro público.
 4. Ejecuta `npm run dev` e inicia sesión en el panel con esa cuenta.
 
-El panel de administración requiere sesión. Puedes crear, consultar, editar los datos y eliminar tus libros. Cada ficha guarda título, subtítulo, descripción y autor; el enlace `/book/<uuid>?title=<nombre>` permite abrir el libro y mostrar esos detalles sin una cuenta de lector. Los libros se almacenan en el bucket público `books`, pero el catálogo y las acciones de administración requieren la sesión propietaria. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
+El panel de administración requiere sesión. La vista principal es una biblioteca con tus libros; desde «Nuevo libro digital» se abre el flujo para subir un PDF y completar título, subtítulo, descripción y autor. Los datos de un libro existente se editan en un modal. El enlace `/book/<uuid>?title=<nombre>` permite abrir el libro y mostrar esos detalles sin una cuenta de lector. Los libros se almacenan en el bucket público `books`, pero el catálogo y las acciones de administración requieren la sesión propietaria. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
 
 ## Producción
 
