@@ -62,18 +62,28 @@ function SharedBookPage() {
     : null
 
   return (
-    <div className="app-shell">
+    <div className="app-shell reader-theme">
       <main className="shared-reader-main">
         {file ? (
-          <BookReader
-            file={file}
-            fileName={`${bookMetadata.title}.pdf`}
-            bookTitle={bookMetadata.title}
-            bookSubtitle={bookMetadata.subtitle}
-            bookDescription={bookMetadata.description}
-            bookAuthor={bookMetadata.author}
-            onLoadError={() => setError('No pudimos abrir este libro. El enlace puede haber caducado o el PDF ya no estar disponible.')}
-          />
+          <>
+            <div className="reader-welcome" aria-hidden="true">
+              <img className="reader-welcome-kitty" src="/sticker-1.png" alt="" />
+              <div>
+                <span>UN RINCONCITO PARA LEER</span>
+                <p>Hecho con cariño, página por página</p>
+              </div>
+              <img className="reader-welcome-bow" src="/sticker-2.png" alt="" />
+            </div>
+            <BookReader
+              file={file}
+              fileName={`${bookMetadata.title}.pdf`}
+              bookTitle={bookMetadata.title}
+              bookSubtitle={bookMetadata.subtitle}
+              bookDescription={bookMetadata.description}
+              bookAuthor={bookMetadata.author}
+              onLoadError={() => setError('No pudimos abrir este libro. El enlace puede haber caducado o el PDF ya no estar disponible.')}
+            />
+          </>
         ) : (
           <section className="empty-state">
             <h1>{supabase ? 'Enlace no válido' : 'Lector no configurado'}</h1>

@@ -101,7 +101,9 @@ function BookReader({
     <section className={`reader-card${onClose ? '' : ' reader-card-shared'}`} aria-label="Lector de PDF">
       <div className="reader-toolbar">
         <div className="document-info">
-          <span className="document-icon"><FileText size={18} /></span>
+          <span className={`document-icon${!onClose ? ' document-icon-kitty' : ''}`}>
+            {!onClose ? <img src="/sticker-3.png" alt="" /> : <FileText size={18} />}
+          </span>
           <div className="document-copy">
             <span className="document-name" title={bookTitle || fileName}>{bookTitle || fileName}</span>
             <span className="document-meta">
