@@ -165,11 +165,7 @@ function BookReader({
         <button
           className="page-arrow page-arrow-right"
           onClick={() => flipBookRef.current?.next()}
-          disabled={
-            !pageCount ||
-            pageNumber + (orientation === 'landscape' ? 1 : 0) >= pageCount ||
-            isTurning
-          }
+          disabled={!pageCount || pageNumber >= pageCount || isTurning}
           aria-label="Página siguiente"
         >
           <ArrowRight size={19} />
@@ -180,7 +176,7 @@ function BookReader({
         <div className="page-counter">
           <span className="current-page">
             {pageNumber.toString().padStart(2, '0')}
-            {orientation === 'landscape' && pageNumber < pageCount
+            {orientation === 'landscape' && pageNumber > 1 && pageNumber < pageCount
               ? `–${(pageNumber + 1).toString().padStart(2, '0')}`
               : ''}
           </span>
@@ -208,7 +204,7 @@ function BookReader({
           <button
             className="control-button next-button"
             onClick={() => flipBookRef.current?.next()}
-            disabled={!pageCount || pageNumber + (orientation === 'landscape' ? 1 : 0) >= pageCount}
+            disabled={!pageCount || pageNumber >= pageCount}
           >
             Siguiente <ArrowRight size={16} />
           </button>

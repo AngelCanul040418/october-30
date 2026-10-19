@@ -266,6 +266,16 @@ const PdfBook = forwardRef(function PdfBook(
     updatePage(event.data, flip.getOrientation())
   }, [updatePage])
 
+  const handleInit = useCallback((event) => {
+    const flip = bookRef.current?.pageFlip()
+    if (flip && pageCount > 0) {
+      // Keep single-page bookends while letting both bend like regular sheets.
+      flip.getPage(0).setDensity('soft')
+      flip.getPage(pageCount - 1).setDensity('soft')
+    }
+    updatePage(event.data.page ?? 0, event.data.mode)
+  }, [pageCount, updatePage])
+
   const handleOrientation = useCallback((event) => {
     updatePage(pageIndexRef.current, event.data)
   }, [updatePage])
@@ -290,8 +300,8 @@ const PdfBook = forwardRef(function PdfBook(
     const orientation = flip.getOrientation()
     const destinationPage = orientation === 'landscape'
       ? direction > 0
-        ? currentPage + 2
-        : currentPage - 2
+        ? currentPage === 0 ? 1 : currentPage + 2
+        : currentPage <= 1 ? 0 : currentPage - 2
       : currentPage + direction
 
     if (destinationPage < 0 || destinationPage >= pageCount) return
@@ -317,17 +327,14 @@ const PdfBook = forwardRef(function PdfBook(
     if (!flip || !pdf || busyRef.current) return
 
     const targetPage = Math.max(0, Math.min(pageCount - 1, pageNumber - 1))
-    const targetSpreadStart = orientationRef.current === 'landscape'
-      ? targetPage - (targetPage % 2)
-      : targetPage
     busyRef.current = true
     callbacksRef.current.onBusyChange(true)
     try {
       const targetSpread = orientationRef.current === 'landscape'
-        ? [targetSpreadStart, targetSpreadStart + 1]
+        ? targetPage === 0 ? [0] : [targetPage - ((targetPage - 1) % 2), targetPage + 1]
         : [targetPage]
       await preparePages(pdf, targetSpread.map((index) => index + 1))
-      flip.turnToPage(targetSpreadStart)
+      flip.turnToPage(targetPage)
       const current = flip.getCurrentPageIndex()
       updatePage(current, flip.getOrientation())
     } catch (renderError) {
@@ -368,11 +375,11 @@ const PdfBook = forwardRef(function PdfBook(
             usePortrait
             autoSize={false}
             maxShadowOpacity={0.72}
-            showCover={false}
+            showCover
             mobileScrollSupport
             useMouseEvents
             showPageCorners={false}
-            onInit={(event) => updatePage(event.data.page ?? 0, event.data.mode)}
+            onInit={handleInit}
             onFlip={handleFlip}
             onChangeOrientation={handleOrientation}
             onChangeState={handleStateChange}
