@@ -632,6 +632,16 @@
   margin: 0 auto;
 }
 
+.flipbook-closed-start {
+  transform: translateX(calc(var(--flipbook-page-width) / -2));
+  transition: transform 260ms ease;
+}
+
+.flipbook-closed-end {
+  transform: translateX(calc(var(--flipbook-page-width) / 2));
+  transition: transform 260ms ease;
+}
+
 .flipbook-page {
   overflow: hidden;
   display: flex;

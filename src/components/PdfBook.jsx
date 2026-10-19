@@ -95,6 +95,7 @@ const PdfBook = forwardRef(function PdfBook(
   const [pageCount, setPageCount] = useState(0)
   const [isReady, setIsReady] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [closedPosition, setClosedPosition] = useState('')
   const cacheRef = useRef(new Map())
   const pageAssetsRef = useRef(new Map())
   const pageNodesRef = useRef([])
@@ -282,25 +283,46 @@ const PdfBook = forwardRef(function PdfBook(
     }
   }, [pdf, preparePages, pruneCache])
 
+  const alignBook = useCallback((pageIndex, orientation) => {
+    if (orientation !== 'landscape') {
+      setClosedPosition('')
+      return
+    }
+    if (pageIndex === 0) {
+      setClosedPosition('flipbook-closed-start')
+    } else if (pageIndex === pageCount) {
+      setClosedPosition('flipbook-closed-end')
+    } else {
+      setClosedPosition('')
+    }
+  }, [pageCount])
+
   const handleFlip = useCallback((event) => {
     const flip = bookRef.current?.pageFlip()
     if (!flip) return
-    updatePage(event.data, flip.getOrientation())
-  }, [updatePage])
+    const orientation = flip.getOrientation()
+    updatePage(event.data, orientation)
+    alignBook(event.data, orientation)
+  }, [alignBook, updatePage])
 
   const handleInit = useCallback((event) => {
     const flip = bookRef.current?.pageFlip()
     if (flip && event.data.mode === 'portrait') {
       flip.turnToPage(1)
       updatePage(1, event.data.mode)
+      alignBook(1, event.data.mode)
       return
     }
-    updatePage(event.data.page ?? 0, event.data.mode)
-  }, [updatePage])
+    const pageIndex = event.data.page ?? 0
+    updatePage(pageIndex, event.data.mode)
+    alignBook(pageIndex, event.data.mode)
+  }, [alignBook, updatePage])
 
   const handleUpdate = useCallback((event) => {
-    updatePage(event.data.page ?? 0, event.data.mode)
-  }, [updatePage])
+    const pageIndex = event.data.page ?? 0
+    updatePage(pageIndex, event.data.mode)
+    alignBook(pageIndex, event.data.mode)
+  }, [alignBook, updatePage])
 
   const handleOrientation = useCallback((event) => {
     const flip = bookRef.current?.pageFlip()
@@ -312,7 +334,8 @@ const PdfBook = forwardRef(function PdfBook(
       : currentPage
     flip.turnToPage(targetPage)
     updatePage(flip.getCurrentPageIndex(), event.data)
-  }, [updatePage])
+    alignBook(flip.getCurrentPageIndex(), event.data)
+  }, [alignBook, updatePage])
 
   const handleStateChange = useCallback((event) => {
     const isBusy = event.data !== 'read'
@@ -323,8 +346,9 @@ const PdfBook = forwardRef(function PdfBook(
       const pageIndex = bookRef.current?.pageFlip().getCurrentPageIndex() ?? pageIndexRef.current
       const orientation = bookRef.current?.pageFlip().getOrientation() ?? orientationRef.current
       updatePage(pageIndex, orientation)
+      alignBook(pageIndex, orientation)
     }
-  }, [pdf, updatePage])
+  }, [alignBook, pdf, updatePage])
 
   const navigate = useCallback(async (direction) => {
     const flip = bookRef.current?.pageFlip()
@@ -373,14 +397,16 @@ const PdfBook = forwardRef(function PdfBook(
       await preparePages(pdf, targetSpread)
       flip.turnToPage(targetSpreadStart)
       const current = flip.getCurrentPageIndex()
-      updatePage(current, flip.getOrientation())
+      const orientation = flip.getOrientation()
+      updatePage(current, orientation)
+      alignBook(current, orientation)
     } catch (renderError) {
       callbacksRef.current.onLoadError(renderError)
     } finally {
       busyRef.current = false
       callbacksRef.current.onBusyChange(false)
     }
-  }, [pageCount, pdf, preparePages, updatePage])
+  }, [alignBook, pageCount, pdf, preparePages, updatePage])
 
   useImperativeHandle(forwardedRef, () => ({
     next: () => navigate(1),
@@ -398,8 +424,8 @@ const PdfBook = forwardRef(function PdfBook(
         <div className="flipbook-host">
           <HTMLFlipBook
             ref={bookRef}
-            className="flipbook"
-            style={{ width: '100%', height: pageHeight }}
+            className={`flipbook ${closedPosition}`}
+            style={{ width: '100%', height: pageHeight, '--flipbook-page-width': `${pageWidth}px` }}
             width={pageWidth}
             height={pageHeight}
             size="stretch"
