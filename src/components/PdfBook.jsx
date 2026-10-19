@@ -241,7 +241,7 @@ function PdfBook({ file, pageNumber, pageWidth, onLoadSuccess, onLoadError, erro
                 style={{
                   width: turn.fromAsset.width,
                   height: turn.fromAsset.height,
-                  transformOrigin: turn.direction > 0 ? 'left center' : 'right center',
+                  transformOrigin: 'left center',
                 }}
                 initial={{ rotateY: 0 }}
                 animate={{ rotateY: turn.direction > 0 ? -180 : 180 }}
