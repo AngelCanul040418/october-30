@@ -327,6 +327,40 @@
   margin-top: 8px;
 }
 
+.book-title-input {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #525d54;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.book-title-input input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid #e0e2db;
+  border-radius: 7px;
+  outline: none;
+  color: #303832;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.book-title-input input:focus {
+  border-color: #789178;
+  box-shadow: 0 0 0 3px rgba(97, 134, 107, 0.12);
+}
+
+.book-title-input input:disabled {
+  color: #777b74;
+  background: #f4f5f1;
+}
+
 .session-loading {
   min-height: 190px;
   box-shadow: none;
@@ -590,6 +624,14 @@
   perspective: 1800px;
 }
 
+.pdf-page-clip {
+  overflow: hidden;
+  flex: 0 0 auto;
+  perspective: 1800px;
+  background: #fff;
+  box-shadow: 0 11px 27px rgba(38, 40, 35, 0.2), 0 2px 5px rgba(38, 40, 35, 0.12);
+}
+
 .pdf-current-page,
 .page-turn-sheet {
   grid-area: 1 / 1;
@@ -713,17 +755,14 @@
   gap: 19px;
 }
 
-.shared-content .intro {
-  margin-bottom: 24px;
-  text-align: center;
+.shared-reader-main {
+  width: min(calc(100% - 24px), 1040px);
+  margin: 0 auto;
+  padding: 12px 0;
 }
 
-.shared-content .eyebrow {
-  justify-content: center;
-}
-
-.shared-content .intro h1 {
-  font-size: clamp(32px, 4vw, 42px);
+.reader-card-shared .book-stage {
+  min-height: min(78vh, 820px);
 }
 
 .page-counter {
@@ -916,6 +955,10 @@
   .book-stage {
     min-height: 290px;
     padding: 24px 50px;
+  }
+
+  .reader-card-shared .book-stage {
+    min-height: 68vh;
   }
 
   .pdf-document {

@@ -5,7 +5,7 @@ Panel privado para subir libros PDF y crear enlaces de lectura compartibles. El 
 ## Tecnologías
 
 - React + Vite
-- React-PDF / PDF.js para mostrar documentos
+- PDF.js para renderizar y precargar páginas
 - Motion para animar el cambio de página
 - Lucide para los iconos
 
@@ -14,6 +14,8 @@ Panel privado para subir libros PDF y crear enlaces de lectura compartibles. El 
 - `App.jsx`: pantalla principal y estado de la aplicación
 - `main.jsx`: punto de entrada de React
 - `components/`: componentes reutilizables, como el lector PDF
+- `pages/`: panel privado y página de lectura compartida
+- `lib/`: cliente de Supabase
 - `styles/`: estilos de la aplicación y estilos globales
 - `assets/`: recursos estáticos
 
@@ -29,7 +31,7 @@ npm run dev
 3. En Supabase Auth, crea manualmente tu cuenta administradora y desactiva el registro público.
 4. Ejecuta `npm run dev` e inicia sesión en el panel con esa cuenta.
 
-El panel de administración requiere sesión. Al guardar un PDF se crea un enlace no predecible `/book/<uuid>`; cualquiera que tenga ese enlace podrá leer el libro. Los libros se almacenan en el bucket público `books` para que el enlace pueda abrirse sin cuentas de lector. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
+El panel de administración requiere sesión. Al guardar un PDF se crea un enlace no predecible `/book/<uuid>?title=<nombre>`; cualquiera que tenga ese enlace podrá leer el libro y verá el nombre indicado en el panel. Los libros se almacenan en el bucket público `books` para que el enlace pueda abrirse sin cuentas de lector. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
 
 ## Producción
 

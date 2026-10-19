@@ -18,9 +18,11 @@ function formatFileSize(bytes) {
 function BookReader({
   file,
   fileName,
+  bookTitle,
   fileSize,
   shareUrl,
   saving,
+  canSave,
   onSave,
   onClose,
   error,
@@ -83,12 +85,12 @@ function BookReader({
   }
 
   return (
-    <section className="reader-card" aria-label="Lector de PDF">
+    <section className={`reader-card${onClose ? '' : ' reader-card-shared'}`} aria-label="Lector de PDF">
       <div className="reader-toolbar">
         <div className="document-info">
           <span className="document-icon"><FileText size={18} /></span>
           <div className="document-copy">
-            <span className="document-name" title={fileName}>{fileName}</span>
+            <span className="document-name" title={bookTitle || fileName}>{bookTitle || fileName}</span>
             <span className="document-meta">
               {pageCount ? `${pageCount} páginas` : 'Abriendo documento'}
               {fileSize ? ` · ${formatFileSize(fileSize)}` : ''}
@@ -108,7 +110,7 @@ function BookReader({
             <button
               className="save-book-button"
               onClick={onSave}
-              disabled={saving || Boolean(shareUrl)}
+              disabled={saving || Boolean(shareUrl) || !canSave}
             >
               {saving ? 'Guardando…' : shareUrl ? 'Guardado' : 'Guardar y crear enlace'}
             </button>

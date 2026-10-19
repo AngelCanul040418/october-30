@@ -224,40 +224,42 @@ function PdfBook({ file, pageNumber, pageWidth, onLoadSuccess, onLoadError, erro
     <div className="pdf-document">
       {baseAsset ? (
         <div
-          className="pdf-page-stack"
+          className="pdf-page-clip"
           style={{ width: baseAsset.width, height: baseAsset.height }}
         >
-          <img
-            className="pdf-current-page"
-            src={baseAsset.url}
-            alt={`Página ${turn ? pageNumber : visiblePage}`}
-            draggable="false"
-          />
-          {turn && (
-            <motion.div
-              key={turn.key}
-              className="page-turn-sheet"
-              style={{
-                width: turn.fromAsset.width,
-                height: turn.fromAsset.height,
-                transformOrigin: turn.direction > 0 ? 'left center' : 'right center',
-              }}
-              initial={{ rotateY: 0 }}
-              animate={{ rotateY: turn.direction > 0 ? -180 : 180 }}
-              transition={{
-                duration: prefersReducedMotion ? 0 : 0.72,
-                ease: [0.42, 0, 0.22, 1],
-              }}
-              onAnimationComplete={() => finishTurn(turn)}
-            >
-              <div className="page-face page-face-front">
-                <img src={turn.fromAsset.url} alt="" draggable="false" />
-              </div>
-              <div className="page-face page-face-back">
-                <img src={turn.toAsset.url} alt="" draggable="false" />
-              </div>
-            </motion.div>
-          )}
+          <div className="pdf-page-stack">
+            <img
+              className="pdf-current-page"
+              src={baseAsset.url}
+              alt={`Página ${turn ? pageNumber : visiblePage}`}
+              draggable="false"
+            />
+            {turn && (
+              <motion.div
+                key={turn.key}
+                className="page-turn-sheet"
+                style={{
+                  width: turn.fromAsset.width,
+                  height: turn.fromAsset.height,
+                  transformOrigin: turn.direction > 0 ? 'left center' : 'right center',
+                }}
+                initial={{ rotateY: 0 }}
+                animate={{ rotateY: turn.direction > 0 ? -180 : 180 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : 0.72,
+                  ease: [0.42, 0, 0.22, 1],
+                }}
+                onAnimationComplete={() => finishTurn(turn)}
+              >
+                <div className="page-face page-face-front">
+                  <img src={turn.fromAsset.url} alt="" draggable="false" />
+                </div>
+                <div className="page-face page-face-back">
+                  <img src={turn.toAsset.url} alt="" draggable="false" />
+                </div>
+              </motion.div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="page-loading" role="status">

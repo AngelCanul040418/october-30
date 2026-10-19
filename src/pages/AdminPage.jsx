@@ -14,6 +14,7 @@ function AdminPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [file, setFile] = useState(null)
+  const [bookTitle, setBookTitle] = useState('')
   const [shareUrl, setShareUrl] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -79,6 +80,7 @@ function AdminPage() {
     }
 
     setFile(nextFile)
+    setBookTitle(nextFile.name.replace(/\.pdf$/i, '').trim())
     setShareUrl('')
     setError('')
   }
@@ -95,26 +97,29 @@ function AdminPage() {
   }
 
   async function saveAndCreateLink() {
-    if (!supabase || !file || saving) return
+    if (!supabase || !file || !bookTitle.trim() || saving || shareUrl) return
 
     setError('')
     setSaving(true)
     const bookId = crypto.randomUUID()
-    const { error: uploadError } = await supabase.storage
-      .from(BOOKS_BUCKET)
-      .upload(`${bookId}.pdf`, file, {
-        cacheControl: '3600',
-        contentType: 'application/pdf',
-        upsert: false,
-      })
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(BOOKS_BUCKET)
+        .upload(`${bookId}.pdf`, file, {
+          cacheControl: '3600',
+          contentType: 'application/pdf',
+          upsert: false,
+        })
 
-    setSaving(false)
-    if (uploadError) {
+      if (uploadError) throw uploadError
+
+      const shareParams = new URLSearchParams({ title: bookTitle.trim() })
+      setShareUrl(`${window.location.origin}/book/${bookId}?${shareParams.toString()}`)
+    } catch (uploadError) {
       setError(`No se pudo guardar el PDF: ${uploadError.message}`)
-      return
+    } finally {
+      setSaving(false)
     }
-
-    setShareUrl(`${window.location.origin}/book/${bookId}`)
   }
 
   async function copyShareLink() {
@@ -183,12 +188,25 @@ function AdminPage() {
             </p>
             {file ? (
               <>
+                <label className="book-title-input">
+                  <span>Nombre que verá quien reciba el enlace</span>
+                  <input
+                    type="text"
+                    value={bookTitle}
+                    onChange={(event) => setBookTitle(event.target.value.slice(0, 120))}
+                    maxLength={120}
+                    placeholder="Escribe el nombre del libro"
+                    disabled={Boolean(shareUrl)}
+                  />
+                </label>
                 <BookReader
                   file={file}
                   fileName={file.name}
+                  bookTitle={bookTitle}
                   fileSize={file.size}
                   shareUrl={shareUrl}
                   saving={saving}
+                  canSave={Boolean(bookTitle.trim())}
                   onSave={saveAndCreateLink}
                   onClose={() => {
                     setFile(null)
