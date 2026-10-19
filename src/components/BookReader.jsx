@@ -139,6 +139,7 @@ function BookReader({
         </button>
         <Suspense fallback={<div className="page-loading"><span className="spinner" /> Preparando tu libro...</div>}>
           <PdfBook
+            key={file instanceof Blob ? `${file.name}-${file.size}-${file.lastModified}` : file}
             file={file}
             pageNumber={pageNumber}
             pageWidth={pageWidth}
