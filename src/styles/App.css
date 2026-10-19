@@ -1052,17 +1052,17 @@
   line-height: 0;
 }
 
-.flipbook-page-padding {
-  background: #f0f0ea;
-  box-shadow: none;
-}
-
 .flipbook-page img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: fill;
   user-select: none;
+}
+
+.reader-card-shared .flipbook-edge-turning .stf__outerShadow,
+.reader-card-shared .flipbook-edge-turning .stf__innerShadow {
+  opacity: 0;
 }
 
 .page-loading {
@@ -1366,15 +1366,6 @@
 
 .reader-card-shared .pdf-document {
   z-index: 2;
-}
-
-.reader-card-shared .flipbook-page-padding {
-  background: #fff5f7;
-}
-
-.reader-card-shared .flipbook-closed-start:not(.flipbook-turning) .flipbook-page-padding,
-.reader-card-shared .flipbook-closed-end:not(.flipbook-turning) .flipbook-page-padding {
-  background: transparent;
 }
 
 .reader-card-shared .page-arrow {

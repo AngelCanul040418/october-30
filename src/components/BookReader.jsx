@@ -53,6 +53,11 @@ function BookReader({
   const [pageWidth, setPageWidth] = useState(640)
   const bookRef = useRef(null)
   const flipBookRef = useRef(null)
+  const canGoNext = pageCount > 1 && (
+    orientation === 'landscape'
+      ? pageNumber === 1 || pageNumber + 1 < pageCount
+      : pageNumber < pageCount
+  )
 
   useEffect(() => {
     const element = bookRef.current
@@ -90,7 +95,8 @@ function BookReader({
     setPageCount(numPages)
     setPageRatio(nextPageRatio)
     setOrientation(window.matchMedia('(min-width: 680px)').matches ? 'landscape' : 'portrait')
-    setPageNumber((current) => Math.min(current, numPages))
+    setPageNumber(1)
+    setIsTurning(false)
   }
 
   function handlePageChange(nextPage, nextOrientation) {
@@ -205,11 +211,7 @@ function BookReader({
         <button
           className="page-arrow page-arrow-right"
           onClick={() => flipBookRef.current?.next()}
-          disabled={
-            !pageCount ||
-            pageNumber + (orientation === 'landscape' ? 1 : 0) >= pageCount ||
-            isTurning
-          }
+          disabled={!canGoNext || isTurning}
           aria-label="Página siguiente"
         >
           <ArrowRight size={19} />
@@ -248,10 +250,7 @@ function BookReader({
           <button
             className="control-button next-button"
             onClick={() => flipBookRef.current?.next()}
-            disabled={
-              !pageCount ||
-              pageNumber + (orientation === 'landscape' ? 1 : 0) >= pageCount
-            }
+            disabled={!canGoNext}
           >
             Siguiente <ArrowRight size={16} />
           </button>
