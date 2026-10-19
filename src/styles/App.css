@@ -386,21 +386,49 @@
   justify-content: center;
 }
 
-.pdf-page-wrap {
+.pdf-page-stack {
   position: relative;
-  z-index: 1;
-  transform-style: preserve-3d;
+  display: grid;
   line-height: 0;
+  perspective: 1800px;
 }
 
-.pdf-page-wrap .react-pdf__Page {
+.pdf-current-page,
+.page-turn-sheet {
+  grid-area: 1 / 1;
+}
+
+.pdf-current-page {
+  position: relative;
+  z-index: 1;
+}
+
+.page-turn-sheet {
+  z-index: 2;
+  display: grid;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+}
+
+.page-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+}
+
+.page-face-back {
+  transform: rotateY(180deg);
+}
+
+.pdf-current-page .react-pdf__Page,
+.page-face .react-pdf__Page {
   overflow: hidden;
   border-radius: 2px;
   background: #fff;
   box-shadow: 0 11px 27px rgba(38, 40, 35, 0.2), 0 2px 5px rgba(38, 40, 35, 0.12);
 }
 
-.pdf-page-wrap .react-pdf__Page__canvas {
+.pdf-current-page .react-pdf__Page__canvas,
+.page-face .react-pdf__Page__canvas {
   display: block;
   max-width: 100%;
   height: auto !important;

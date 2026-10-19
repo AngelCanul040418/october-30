@@ -1,4 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -9,6 +10,23 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 function PdfBook({ file, pageNumber, pageWidth, onLoadSuccess, onLoadError, error }) {
+  const previousPageRef = useRef(pageNumber)
+  const [turn, setTurn] = useState(null)
+  const prefersReducedMotion = useReducedMotion()
+
+  useLayoutEffect(() => {
+    const previousPage = previousPageRef.current
+    previousPageRef.current = pageNumber
+
+    if (previousPage !== pageNumber) {
+      setTurn({
+        from: previousPage,
+        direction: pageNumber > previousPage ? 1 : -1,
+        key: `${previousPage}-${pageNumber}`,
+      })
+    }
+  }, [pageNumber])
+
   return (
     <Document
       className="pdf-document"
@@ -18,15 +36,8 @@ function PdfBook({ file, pageNumber, pageWidth, onLoadSuccess, onLoadError, erro
       loading={<div className="page-loading"><span className="spinner" /> Preparando tu libro...</div>}
       error={<div className="page-loading">{error || 'No se pudo cargar el PDF.'}</div>}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={pageNumber}
-          className="pdf-page-wrap"
-          initial={{ opacity: 0, rotateY: pageNumber > 1 ? 16 : -16, x: pageNumber > 1 ? 18 : -18 }}
-          animate={{ opacity: 1, rotateY: 0, x: 0 }}
-          exit={{ opacity: 0, rotateY: pageNumber > 1 ? -12 : 12, x: pageNumber > 1 ? -14 : 14 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        >
+      <div className="pdf-page-stack">
+        <div className="pdf-current-page">
           <Page
             pageNumber={pageNumber}
             width={pageWidth}
@@ -34,8 +45,42 @@ function PdfBook({ file, pageNumber, pageWidth, onLoadSuccess, onLoadError, erro
             renderAnnotationLayer={false}
             loading={<div className="page-loading"><span className="spinner" /> Cargando página...</div>}
           />
-        </motion.div>
-      </AnimatePresence>
+        </div>
+        {turn && (
+          <motion.div
+            key={turn.key}
+            className="page-turn-sheet"
+            initial={{ rotateY: 0 }}
+            animate={{ rotateY: turn.direction > 0 ? -180 : 180 }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.68,
+              ease: [0.42, 0, 0.22, 1],
+            }}
+            onAnimationComplete={() => {
+              setTurn((currentTurn) => (
+                currentTurn?.key === turn.key ? null : currentTurn
+              ))
+            }}
+          >
+            <div className="page-face page-face-front">
+              <Page
+                pageNumber={turn.from}
+                width={pageWidth}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            </div>
+            <div className="page-face page-face-back">
+              <Page
+                pageNumber={pageNumber}
+                width={pageWidth}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            </div>
+          </motion.div>
+        )}
+      </div>
     </Document>
   )
 }

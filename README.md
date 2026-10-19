@@ -1,6 +1,6 @@
 # Folio
 
-Panel inicial para cargar y revisar localmente un PDF. La página de lectura para compartir con otra persona aún no está implementada.
+Panel inicial para cargar y revisar localmente un PDF, con animación de giro de página. La página de lectura para compartir con otra persona aún no está implementada.
 
 ## Tecnologías
 
