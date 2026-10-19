@@ -29,6 +29,7 @@ function AdminPage() {
   const [author, setAuthor] = useState('')
   const [shareUrl, setShareUrl] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [books, setBooks] = useState([])
   const [loadingBooks, setLoadingBooks] = useState(false)
@@ -210,6 +211,7 @@ function AdminPage() {
     if (!supabase || !user || !file || !bookTitle.trim() || saving || shareUrl) return
 
     setError('')
+    setSuccess('')
     setSaving(true)
     const bookId = crypto.randomUUID()
     const filePath = `${bookId}.pdf`
@@ -252,6 +254,7 @@ function AdminPage() {
       }
       setShareUrl(createShareUrl(savedBook))
       await loadBooks()
+      setSuccess(`“${savedBook.title}” se guardó correctamente y ya puedes compartir su enlace.`)
     } catch (uploadError) {
       setError(`No se pudo guardar el libro: ${uploadError.message}`)
     } finally {
@@ -266,6 +269,7 @@ function AdminPage() {
     setDescription(book.description)
     setAuthor(book.author)
     setError('')
+    setSuccess('')
     setFile(null)
     setShareUrl('')
     setActiveView('dashboard')
@@ -280,6 +284,7 @@ function AdminPage() {
     setShareUrl('')
     setEditingBook(null)
     setError('')
+    setSuccess('')
     setActiveView('create')
   }
 
@@ -292,6 +297,7 @@ function AdminPage() {
     setShareUrl('')
     setEditingBook(null)
     setError('')
+    setSuccess('')
     setActiveView('dashboard')
   }
 
@@ -300,6 +306,7 @@ function AdminPage() {
     if (!supabase || !user || !editingBook || !bookTitle.trim() || saving) return
 
     setError('')
+    setSuccess('')
     setSaving(true)
     try {
       const { error: updateError } = await supabase.from('books').upsert({
@@ -320,6 +327,7 @@ function AdminPage() {
       setSubtitle('')
       setDescription('')
       setAuthor('')
+      setSuccess(`Los cambios de “${editingBook.title}” se guardaron correctamente.`)
     } catch (updateError) {
       setError(`No se pudieron guardar los cambios: ${updateError.message}`)
     } finally {
@@ -332,6 +340,7 @@ function AdminPage() {
     if (!window.confirm(`¿Eliminar “${book.title}” y su PDF? El enlace dejará de funcionar.`)) return
 
     setError('')
+    setSuccess('')
     setDeletingBookId(book.id)
     try {
       const { error: storageError } = await supabase.storage.from(BOOKS_BUCKET).remove([book.file_path])
@@ -344,6 +353,7 @@ function AdminPage() {
 
       setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== book.id))
       if (editingBook?.id === book.id) setEditingBook(null)
+      setSuccess(`“${book.title}” se eliminó correctamente.`)
     } catch (deleteError) {
       setError(`No se pudo completar la eliminación: ${deleteError.message}`)
       await loadBooks()
@@ -477,6 +487,12 @@ function AdminPage() {
           </section>
         ) : (
           <>
+            {success && (
+              <p className="success-message" role="status">
+                <Check size={17} />
+                <span>{success}</span>
+              </p>
+            )}
             {activeView === 'dashboard' ? (
               <>
                 <div className="dashboard-heading">
