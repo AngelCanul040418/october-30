@@ -19,6 +19,9 @@ function BookReader({
   file,
   fileName,
   bookTitle,
+  bookSubtitle = '',
+  bookDescription = '',
+  bookAuthor = '',
   fileSize,
   shareUrl,
   saving,
@@ -138,6 +141,14 @@ function BookReader({
           </button>
         </div>
       </div>
+
+      {(bookSubtitle || bookDescription || bookAuthor) && !onClose && (
+        <div className="shared-book-details">
+          {bookSubtitle && <p className="shared-book-subtitle">{bookSubtitle}</p>}
+          {bookAuthor && <p className="shared-book-author">Por {bookAuthor}</p>}
+          {bookDescription && <p className="shared-book-description">{bookDescription}</p>}
+        </div>
+      )}
 
       <div className="book-stage" ref={bookRef}>
         <span className="stage-glow" />

@@ -9,14 +9,52 @@ function SharedBookPage() {
   const { bookId } = useParams()
   const location = useLocation()
   const [error, setError] = useState('')
-  const bookTitle = new URLSearchParams(location.search).get('title')?.trim() || 'Libro compartido'
+  const linkTitle = new URLSearchParams(location.search).get('title')?.trim() || 'Libro compartido'
+  const [metadataResult, setMetadataResult] = useState(null)
+  const [metadataError, setMetadataError] = useState(null)
 
   useEffect(() => {
-    document.title = `${bookTitle} · Folio`
+    let active = true
+
+    if (supabase && bookIdPattern.test(bookId ?? '')) {
+      supabase.rpc('get_shared_book', { requested_id: bookId })
+        .then(({ data, error: requestError }) => {
+          if (!active) return
+          if (requestError) {
+            setMetadataError({
+              bookId,
+              message: `No se pudieron cargar los detalles del libro: ${requestError.message}`,
+            })
+            return
+          }
+          if (data?.[0]) setMetadataResult({ bookId, data: data[0] })
+        })
+        .catch((requestError) => {
+          if (active) {
+            setMetadataError({
+              bookId,
+              message: `No se pudieron cargar los detalles del libro: ${requestError.message}`,
+            })
+          }
+        })
+    }
+
+    return () => {
+      active = false
+    }
+  }, [bookId, linkTitle])
+
+  const bookMetadata = metadataResult?.bookId === bookId
+    ? metadataResult.data
+    : { title: linkTitle, subtitle: '', description: '', author: '' }
+  const currentMetadataError = metadataError?.bookId === bookId ? metadataError.message : ''
+
+  useEffect(() => {
+    document.title = `${bookMetadata.title} · Folio`
     return () => {
       document.title = 'Folio — Tu espacio de lectura'
     }
-  }, [bookTitle])
+  }, [bookMetadata.title])
 
   const validLink = bookIdPattern.test(bookId ?? '')
   const file = validLink && supabase
@@ -29,9 +67,11 @@ function SharedBookPage() {
         {file ? (
           <BookReader
             file={file}
-            fileName={`${bookTitle}.pdf`}
-            bookTitle={bookTitle}
-            error={error}
+            fileName={`${bookMetadata.title}.pdf`}
+            bookTitle={bookMetadata.title}
+            bookSubtitle={bookMetadata.subtitle}
+            bookDescription={bookMetadata.description}
+            bookAuthor={bookMetadata.author}
             onLoadError={() => setError('No pudimos abrir este libro. El enlace puede haber caducado o el PDF ya no estar disponible.')}
           />
         ) : (
@@ -44,6 +84,8 @@ function SharedBookPage() {
             </p>
           </section>
         )}
+        {error && file && <p className="metadata-load-error" role="alert">{error}</p>}
+        {currentMetadataError && file && <p className="metadata-load-error" role="status">{currentMetadataError}</p>}
       </main>
     </div>
   )

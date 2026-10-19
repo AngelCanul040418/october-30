@@ -27,11 +27,11 @@ npm run dev
 ```
 
 1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave `publishable`.
-2. Ejecuta el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase.
+2. Ejecuta todo el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase. Si ya lo ejecutaste antes, vuelve a ejecutarlo para agregar el catálogo y los permisos de administración de libros.
 3. En Supabase Auth, crea manualmente tu cuenta administradora y desactiva el registro público.
 4. Ejecuta `npm run dev` e inicia sesión en el panel con esa cuenta.
 
-El panel de administración requiere sesión. Al guardar un PDF se crea un enlace no predecible `/book/<uuid>?title=<nombre>`; cualquiera que tenga ese enlace podrá leer el libro y verá el nombre indicado en el panel. Los libros se almacenan en el bucket público `books` para que el enlace pueda abrirse sin cuentas de lector. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
+El panel de administración requiere sesión. Puedes crear, consultar, editar los datos y eliminar tus libros. Cada ficha guarda título, subtítulo, descripción y autor; el enlace `/book/<uuid>?title=<nombre>` permite abrir el libro y mostrar esos detalles sin una cuenta de lector. Los libros se almacenan en el bucket público `books`, pero el catálogo y las acciones de administración requieren la sesión propietaria. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
 
 ## Producción
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, FileText, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, Copy, FileText, Pencil, Trash2, Upload, X } from 'lucide-react'
 import BookReader from '../components/BookReader.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import {
@@ -8,6 +8,15 @@ import {
   supabase,
 } from '../lib/supabase.js'
 
+const bookIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const emptyMetadata = { title: '', subtitle: '', description: '', author: '' }
+const bookFields = 'id,title,subtitle,description,author,file_path,created_at,updated_at'
+
+function createShareUrl(book) {
+  const params = new URLSearchParams({ title: book.title })
+  return `${window.location.origin}/book/${book.id}?${params.toString()}`
+}
+
 function AdminPage() {
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
@@ -15,12 +24,77 @@ function AdminPage() {
   const [password, setPassword] = useState('')
   const [file, setFile] = useState(null)
   const [bookTitle, setBookTitle] = useState('')
+  const [subtitle, setSubtitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [author, setAuthor] = useState('')
   const [shareUrl, setShareUrl] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [books, setBooks] = useState([])
+  const [loadingBooks, setLoadingBooks] = useState(false)
+  const [editingBook, setEditingBook] = useState(null)
+  const [deletingBookId, setDeletingBookId] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedBookId, setCopiedBookId] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const uploadRef = useRef(null)
+
+  const fetchBooks = useCallback(async () => {
+    if (!supabase) return []
+
+    const [metadataResult, storageFiles] = await Promise.all([
+      supabase.from('books').select(bookFields).order('created_at', { ascending: false }),
+      (async () => {
+        const files = []
+        let offset = 0
+        let batch
+        do {
+          const { data, error: listError } = await supabase.storage
+            .from(BOOKS_BUCKET)
+            .list('', { limit: 100, offset, sortBy: { column: 'created_at', order: 'desc' } })
+          if (listError) throw listError
+          batch = data ?? []
+          files.push(...batch)
+          offset += batch.length
+        } while (batch.length === 100)
+        return files
+      })(),
+    ])
+
+    if (metadataResult.error) throw metadataResult.error
+
+    const metadataById = new Map((metadataResult.data ?? []).map((book) => [book.id, book]))
+    return storageFiles
+      .filter((entry) => entry.name.endsWith('.pdf'))
+      .map((entry) => {
+        const id = entry.name.slice(0, -4)
+        if (!bookIdPattern.test(id)) return null
+        const metadata = metadataById.get(id)
+        return {
+          ...emptyMetadata,
+          ...metadata,
+          id,
+          file_path: `${id}.pdf`,
+          title: metadata?.title || 'Libro compartido',
+          created_at: metadata?.created_at || entry.created_at,
+          hasMetadata: Boolean(metadata),
+        }
+      })
+      .filter(Boolean)
+      .sort((first, second) => new Date(second.created_at || 0) - new Date(first.created_at || 0))
+  }, [])
+
+  const loadBooks = useCallback(async () => {
+    setLoadingBooks(true)
+    setError('')
+    try {
+      setBooks(await fetchBooks())
+    } catch (loadError) {
+      setError(`No se pudieron cargar tus libros: ${loadError.message}`)
+    } finally {
+      setLoadingBooks(false)
+    }
+  }, [fetchBooks])
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -48,6 +122,27 @@ function AdminPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!user) return undefined
+
+    let active = true
+    fetchBooks()
+      .then((loadedBooks) => {
+        if (active) setBooks(loadedBooks)
+        if (active) setError('')
+      })
+      .catch((loadError) => {
+        if (active) setError(`No se pudieron cargar tus libros: ${loadError.message}`)
+      })
+      .finally(() => {
+        if (active) setLoadingBooks(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [fetchBooks, user])
+
   async function signIn(event) {
     event.preventDefault()
     if (!supabase) return
@@ -64,6 +159,8 @@ function AdminPage() {
     else {
       setFile(null)
       setShareUrl('')
+      setEditingBook(null)
+      setBooks([])
       setError('')
     }
   }
@@ -81,7 +178,11 @@ function AdminPage() {
 
     setFile(nextFile)
     setBookTitle(nextFile.name.replace(/\.pdf$/i, '').trim())
+    setSubtitle('')
+    setDescription('')
+    setAuthor('')
     setShareUrl('')
+    setEditingBook(null)
     setError('')
   }
 
@@ -97,15 +198,16 @@ function AdminPage() {
   }
 
   async function saveAndCreateLink() {
-    if (!supabase || !file || !bookTitle.trim() || saving || shareUrl) return
+    if (!supabase || !user || !file || !bookTitle.trim() || saving || shareUrl) return
 
     setError('')
     setSaving(true)
     const bookId = crypto.randomUUID()
+    const filePath = `${bookId}.pdf`
     try {
       const { error: uploadError } = await supabase.storage
         .from(BOOKS_BUCKET)
-        .upload(`${bookId}.pdf`, file, {
+        .upload(filePath, file, {
           cacheControl: '3600',
           contentType: 'application/pdf',
           upsert: false,
@@ -113,12 +215,106 @@ function AdminPage() {
 
       if (uploadError) throw uploadError
 
-      const shareParams = new URLSearchParams({ title: bookTitle.trim() })
-      setShareUrl(`${window.location.origin}/book/${bookId}?${shareParams.toString()}`)
+      const { error: metadataError } = await supabase.from('books').insert({
+        id: bookId,
+        owner_id: user.id,
+        file_path: filePath,
+        title: bookTitle.trim(),
+        subtitle: subtitle.trim(),
+        description: description.trim(),
+        author: author.trim(),
+        updated_at: new Date().toISOString(),
+      })
+
+      if (metadataError) {
+        const { error: cleanupError } = await supabase.storage.from(BOOKS_BUCKET).remove([filePath])
+        if (cleanupError) {
+          throw new Error(`${metadataError.message}. Además, no se pudo retirar el PDF incompleto: ${cleanupError.message}`)
+        }
+        throw metadataError
+      }
+
+      const savedBook = {
+        id: bookId,
+        title: bookTitle.trim(),
+        subtitle: subtitle.trim(),
+        description: description.trim(),
+        author: author.trim(),
+      }
+      setShareUrl(createShareUrl(savedBook))
+      await loadBooks()
     } catch (uploadError) {
-      setError(`No se pudo guardar el PDF: ${uploadError.message}`)
+      setError(`No se pudo guardar el libro: ${uploadError.message}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  function startEditing(book) {
+    setEditingBook(book)
+    setBookTitle(book.title)
+    setSubtitle(book.subtitle)
+    setDescription(book.description)
+    setAuthor(book.author)
+    setError('')
+    setFile(null)
+    setShareUrl('')
+  }
+
+  async function updateBook(event) {
+    event.preventDefault()
+    if (!supabase || !user || !editingBook || !bookTitle.trim() || saving) return
+
+    setError('')
+    setSaving(true)
+    try {
+      const { error: updateError } = await supabase.from('books').upsert({
+        id: editingBook.id,
+        owner_id: user.id,
+        file_path: editingBook.file_path,
+        title: bookTitle.trim(),
+        subtitle: subtitle.trim(),
+        description: description.trim(),
+        author: author.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      if (updateError) throw updateError
+
+      await loadBooks()
+      setEditingBook(null)
+      setBookTitle('')
+      setSubtitle('')
+      setDescription('')
+      setAuthor('')
+    } catch (updateError) {
+      setError(`No se pudieron guardar los cambios: ${updateError.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteBook(book) {
+    if (!supabase || !user || deletingBookId) return
+    if (!window.confirm(`¿Eliminar “${book.title}” y su PDF? El enlace dejará de funcionar.`)) return
+
+    setError('')
+    setDeletingBookId(book.id)
+    try {
+      const { error: storageError } = await supabase.storage.from(BOOKS_BUCKET).remove([book.file_path])
+      if (storageError) throw storageError
+
+      const { error: metadataError } = await supabase.from('books').delete().eq('id', book.id)
+      if (metadataError) {
+        throw new Error(`El PDF se eliminó, pero no se pudo borrar su ficha: ${metadataError.message}`)
+      }
+
+      setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== book.id))
+      if (editingBook?.id === book.id) setEditingBook(null)
+    } catch (deleteError) {
+      setError(`No se pudo completar la eliminación: ${deleteError.message}`)
+      await loadBooks()
+    } finally {
+      setDeletingBookId('')
     }
   }
 
@@ -130,6 +326,68 @@ function AdminPage() {
     } catch (clipboardError) {
       setError(`No se pudo copiar el enlace: ${clipboardError.message}`)
     }
+  }
+
+  async function copyBookLink(book) {
+    try {
+      await navigator.clipboard.writeText(createShareUrl(book))
+      setCopiedBookId(book.id)
+      window.setTimeout(() => setCopiedBookId(''), 1800)
+    } catch (clipboardError) {
+      setError(`No se pudo copiar el enlace: ${clipboardError.message}`)
+    }
+  }
+
+  function renderMetadataFields(disabled = false) {
+    return (
+      <div className="metadata-form-grid">
+        <label className="book-title-input">
+          <span>Título *</span>
+          <input
+            type="text"
+            value={bookTitle}
+            onChange={(event) => setBookTitle(event.target.value.slice(0, 120))}
+            maxLength={120}
+            placeholder="Nombre del libro"
+            required
+            disabled={disabled}
+          />
+        </label>
+        <label className="book-title-input">
+          <span>Subtítulo</span>
+          <input
+            type="text"
+            value={subtitle}
+            onChange={(event) => setSubtitle(event.target.value.slice(0, 160))}
+            maxLength={160}
+            placeholder="Opcional"
+            disabled={disabled}
+          />
+        </label>
+        <label className="book-title-input">
+          <span>Autor</span>
+          <input
+            type="text"
+            value={author}
+            onChange={(event) => setAuthor(event.target.value.slice(0, 120))}
+            maxLength={120}
+            placeholder="Opcional"
+            disabled={disabled}
+          />
+        </label>
+        <label className="book-title-input metadata-description">
+          <span>Descripción</span>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value.slice(0, 2000))}
+            maxLength={2000}
+            rows={3}
+            placeholder="Una breve descripción del libro"
+            disabled={disabled}
+          />
+        </label>
+      </div>
+    )
   }
 
   return (
@@ -186,19 +444,48 @@ function AdminPage() {
             <p className="admin-notice" role="note">
               Los enlaces de lectura permiten ver el libro a quien los tenga. No los compartas si el documento es confidencial.
             </p>
-            {file ? (
+            {editingBook ? (
+              <form className="metadata-editor" onSubmit={updateBook}>
+                <div className="catalog-heading">
+                  <div>
+                    <p className="eyebrow">EDITAR LIBRO</p>
+                    <h2>{editingBook.title}</h2>
+                  </div>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    onClick={() => {
+                      setEditingBook(null)
+                      setError('')
+                    }}
+                    aria-label="Cancelar edición"
+                    title="Cancelar"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                {renderMetadataFields()}
+                <div className="metadata-form-actions">
+                  <button className="primary-button" type="submit" disabled={saving || !bookTitle.trim()}>
+                    {saving ? 'Guardando…' : 'Guardar cambios'}
+                  </button>
+                  <a className="secondary-button catalog-open-link" href={createShareUrl(editingBook)} target="_blank" rel="noreferrer">
+                    Abrir enlace actual
+                  </a>
+                </div>
+                {error && <p className="error-message upload-error" role="alert">{error}</p>}
+              </form>
+            ) : file ? (
               <>
-                <label className="book-title-input">
-                  <span>Nombre que verá quien reciba el enlace</span>
-                  <input
-                    type="text"
-                    value={bookTitle}
-                    onChange={(event) => setBookTitle(event.target.value.slice(0, 120))}
-                    maxLength={120}
-                    placeholder="Escribe el nombre del libro"
-                    disabled={Boolean(shareUrl)}
-                  />
-                </label>
+                <section className="metadata-editor upload-metadata">
+                  <div className="catalog-heading">
+                    <div>
+                      <p className="eyebrow">DETALLES DEL LIBRO</p>
+                      <h2>{shareUrl ? 'Libro guardado' : 'Completa la información'}</h2>
+                    </div>
+                  </div>
+                  {renderMetadataFields(Boolean(shareUrl))}
+                </section>
                 <BookReader
                   file={file}
                   fileName={file.name}
@@ -206,7 +493,7 @@ function AdminPage() {
                   fileSize={file.size}
                   shareUrl={shareUrl}
                   saving={saving}
-                  canSave={Boolean(bookTitle.trim())}
+                  canSave={Boolean(bookTitle.trim()) && !shareUrl}
                   onSave={saveAndCreateLink}
                   onClose={() => {
                     setFile(null)
@@ -278,6 +565,79 @@ function AdminPage() {
                 {error && <p className="error-message" role="alert">{error}</p>}
               </section>
             )}
+            <section className="book-catalog" aria-labelledby="catalog-title">
+              <div className="catalog-heading">
+                <div>
+                  <p className="eyebrow">BIBLIOTECA</p>
+                  <h2 id="catalog-title">Tus libros</h2>
+                </div>
+                <span className="catalog-count">{books.length}</span>
+              </div>
+              {error && !file && !editingBook && <p className="error-message catalog-error" role="alert">{error}</p>}
+              {error.includes('libros') && !file && !editingBook && (
+                <p className="catalog-help">
+                  Comprueba que hayas ejecutado el SQL actualizado de <code>supabase/setup.sql</code> en Supabase.
+                </p>
+              )}
+              {loadingBooks && books.length === 0 ? (
+                <p className="catalog-message">Cargando tus libros…</p>
+              ) : books.length === 0 ? (
+                <p className="catalog-message">Todavía no has guardado ningún libro.</p>
+              ) : (
+                <ul className="book-list">
+                  {books.map((book) => (
+                    <li className="book-list-item" key={book.id}>
+                      <div className="book-list-info">
+                        <span className="book-list-icon"><FileText size={17} /></span>
+                        <div className="book-list-copy">
+                          <strong>{book.title}</strong>
+                          <span>
+                            {[book.author, book.subtitle].filter(Boolean).join(' · ') || 'PDF'}
+                            {!book.hasMetadata && ' · Completa los detalles'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="book-list-actions">
+                        <a
+                          className="secondary-button catalog-open-link"
+                          href={createShareUrl(book)}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Abrir ${book.title}`}
+                        >
+                          Abrir
+                        </a>
+                        <button
+                          className="icon-button catalog-action"
+                          onClick={() => copyBookLink(book)}
+                          aria-label={`Copiar enlace de ${book.title}`}
+                          title="Copiar enlace"
+                        >
+                          {copiedBookId === book.id ? <Check size={17} /> : <Copy size={17} />}
+                        </button>
+                        <button
+                          className="icon-button catalog-action"
+                          onClick={() => startEditing(book)}
+                          aria-label={`Editar ${book.title}`}
+                          title="Editar detalles"
+                        >
+                          <Pencil size={17} />
+                        </button>
+                        <button
+                          className="icon-button catalog-action catalog-delete"
+                          onClick={() => deleteBook(book)}
+                          disabled={deletingBookId === book.id}
+                          aria-label={`Eliminar ${book.title}`}
+                          title="Eliminar libro"
+                        >
+                          {deletingBookId === book.id ? <span className="spinner" /> : <Trash2 size={17} />}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </>
         )}
         <footer className="page-footer"><span>Lector privado · Enlace de lectura compartible</span></footer>
