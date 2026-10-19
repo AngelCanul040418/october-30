@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave pública (`anon`/`publishable`).
+1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave `publishable`.
 2. Ejecuta el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase.
 3. En Supabase Auth, crea manualmente tu cuenta administradora y desactiva el registro público.
 4. Ejecuta `npm run dev` e inicia sesión en el panel con esa cuenta.
@@ -38,4 +38,4 @@ npm run build
 npm run preview
 ```
 
-En Vercel, agrega `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` como variables de entorno para Production, Preview y Development. La clave anon/publishable está diseñada para el cliente y las políticas de Storage limitan las subidas a usuarios autenticados. Nunca pongas la contraseña de la base de datos ni la clave `service_role` en el frontend, en estas variables o en Git.
+En Vercel, agrega `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` como variables de entorno para Production, Preview y Development. La clave publishable está diseñada para el cliente y las políticas de Storage limitan las subidas a usuarios autenticados. Nunca pongas una clave `secret`, la contraseña de la base de datos ni una clave `service_role` en el frontend, en estas variables o en Git.

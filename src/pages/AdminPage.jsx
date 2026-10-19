@@ -143,7 +143,7 @@ function AdminPage() {
 
         {!isSupabaseConfigured ? (
           <div className="admin-notice" role="alert">
-            Faltan las variables <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code>.
+            Faltan las variables <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>.
             Configúralas en el archivo local <code>.env.local</code> y en Vercel.
           </div>
         ) : checkingSession ? (
