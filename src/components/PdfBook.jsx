@@ -49,7 +49,7 @@ function renderPage(pdf, pageNumber, width) {
 }
 
 const FlipPage = forwardRef(function FlipPage(
-  { pageIndex, pageNumber, nodesRef, assetsRef },
+  { pageIndex, pageNumber, isPadding = false, nodesRef, assetsRef },
   forwardedRef,
 ) {
   const setRef = useCallback((node) => {
@@ -70,8 +70,9 @@ const FlipPage = forwardRef(function FlipPage(
   return (
     <div
       ref={setRef}
-      className="flipbook-page"
+      className={`flipbook-page${isPadding ? ' flipbook-page-padding' : ''}`}
       data-density="soft"
+      aria-hidden={isPadding || undefined}
     >
       {pageNumber && <img alt="" draggable="false" />}
     </div>
@@ -238,6 +239,7 @@ const PdfBook = forwardRef(function PdfBook(
         key="inside-cover"
         pageIndex={0}
         pageNumber={null}
+        isPadding
         nodesRef={pageNodesRef}
         assetsRef={pageAssetsRef}
       />,
@@ -256,6 +258,7 @@ const PdfBook = forwardRef(function PdfBook(
             key="inside-back-cover"
             pageIndex={pageCount + 1}
             pageNumber={null}
+            isPadding
             nodesRef={pageNodesRef}
             assetsRef={pageAssetsRef}
           />
