@@ -63,19 +63,18 @@
 .main-content {
   width: min(100% - 48px, 880px);
   margin: 0 auto;
-  padding: 61px 0 34px;
+  padding: 52px 0 34px;
 }
 
 .intro {
-  text-align: center;
-  margin-bottom: 36px;
+  margin-bottom: 25px;
 }
 
 .eyebrow {
   margin: 0 0 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 9px;
   color: #768074;
   font-size: 10px;
@@ -87,18 +86,29 @@
   margin: 0;
   color: #222c27;
   font-family: var(--font-display);
-  font-size: clamp(38px, 5.1vw, 56px);
+  font-size: clamp(32px, 4.2vw, 43px);
   font-weight: 500;
   letter-spacing: -0.055em;
   line-height: 1.06;
 }
 
 .intro-copy {
-  max-width: 445px;
-  margin: 16px auto 0;
+  max-width: 570px;
+  margin: 10px 0 0;
   color: #797b75;
   font-size: 14px;
   line-height: 1.65;
+}
+
+.admin-notice {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid #ead9b6;
+  border-radius: 8px;
+  color: #705c36;
+  background: #fbf7ec;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .upload-card {
@@ -285,6 +295,17 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+
+.preview-badge {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: #777052;
+  background: #f6f3e9;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .document-name {
@@ -555,13 +576,8 @@
   padding: 18px 0 0;
   display: flex;
   justify-content: center;
-  gap: 9px;
   color: #999b94;
   font-size: 11px;
-}
-
-.footer-divider {
-  color: #c5c6be;
 }
 
 @media (max-width: 680px) {
@@ -588,7 +604,7 @@
   }
 
   .intro-copy {
-    max-width: 350px;
+    max-width: 420px;
     font-size: 13px;
   }
 
@@ -607,7 +623,14 @@
   }
 
   .document-name {
-    max-width: 48vw;
+    max-width: 35vw;
+  }
+
+  .preview-badge {
+    max-width: 90px;
+    overflow: hidden;
+    margin-left: 7px;
+    text-overflow: ellipsis;
   }
 
   .toolbar-actions {

@@ -132,20 +132,24 @@ function App() {
         </a>
         <div className="topbar-note">
           <span className="status-dot" />
-          Tu espacio de lectura
+          Administración
         </div>
       </header>
 
       <main className="main-content">
         <section className="intro">
-          <p className="eyebrow"><span /> LECTURA, A TU MANERA</p>
-          <h1>Un buen PDF merece<br className="desktop-break" /> pasar sus páginas.</h1>
+          <p className="eyebrow"><span /> ADMINISTRACIÓN</p>
+          <h1>Subir y revisar el PDF</h1>
           <p className="intro-copy">
-            Convierte cualquier documento en una experiencia de lectura más cercana a un libro.
+            Aquí preparas el documento. La página de lectura para compartir con otra persona se añadirá después.
           </p>
         </section>
 
         {!file ? (
+          <>
+            <p className="admin-notice" role="note">
+              Este panel aún no está protegido y los PDF no se guardan en línea. Evita subir documentos privados por ahora.
+            </p>
           <section
             className={`upload-card${isDragging ? ' is-dragging' : ''}`}
             onDragEnter={(event) => {
@@ -163,11 +167,11 @@ function App() {
               <span className="upload-spark spark-one" />
               <span className="upload-spark spark-two" />
             </div>
-            <h2>Tu próximo libro empieza aquí</h2>
-            <p className="upload-description">Suelta tu PDF en esta ventana o búscalo en tu dispositivo.</p>
+            <h2>Selecciona el PDF del libro</h2>
+            <p className="upload-description">Elige un documento para abrirlo y revisar sus páginas.</p>
             <button className="primary-button" onClick={() => uploadRef.current?.click()}>
               <Upload size={17} />
-              Elegir un PDF
+              Seleccionar PDF
             </button>
             <input
               ref={uploadRef}
@@ -177,9 +181,10 @@ function App() {
               onChange={handleFileChange}
               aria-label="Elegir un archivo PDF"
             />
-            <p className="file-hint"><Check size={14} /> Tus archivos se abren aquí, en tu navegador.</p>
+            <p className="file-hint"><Check size={14} /> También puedes arrastrar el archivo hasta aquí.</p>
             {error && <p className="error-message" role="alert">{error}</p>}
           </section>
+          </>
         ) : (
           <section className="reader-card" aria-label="Lector de PDF">
             <div className="reader-toolbar">
@@ -191,6 +196,7 @@ function App() {
                     {pageCount ? `${pageCount} páginas` : 'Abriendo documento'} · {formatFileSize(file.size)}
                   </span>
                 </div>
+                <span className="preview-badge">Revisión local · Sin guardar</span>
               </div>
               <div className="toolbar-actions">
                 <button className="icon-button" onClick={downloadPdf} aria-label="Descargar PDF" title="Descargar PDF">
@@ -272,9 +278,7 @@ function App() {
         )}
 
         <footer className="page-footer">
-          <span>Hecho para leer sin prisa.</span>
-          <span className="footer-divider">·</span>
-          <span>PDF hasta 50 MB</span>
+          <span>Límite del archivo: 50 MB</span>
         </footer>
       </main>
     </div>
