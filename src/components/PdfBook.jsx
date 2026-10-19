@@ -162,7 +162,6 @@ const PdfBook = forwardRef(function PdfBook(
   useEffect(() => {
     let active = true
     let loadingTask
-    let loadedDocument
     const assetCache = cacheRef.current
     const pageAssets = pageAssetsRef.current
 
@@ -173,13 +172,13 @@ const PdfBook = forwardRef(function PdfBook(
           : { url: file }
 
         loadingTask = getDocument(source)
-        loadedDocument = await loadingTask.promise
+        const loadedDocument = await loadingTask.promise
         const firstPage = await loadedDocument.getPage(1)
         const firstViewport = firstPage.getViewport({ scale: 1 })
         firstPage.cleanup()
 
         if (!active) {
-          await loadedDocument.destroy()
+          await loadingTask.destroy()
           return
         }
 
@@ -201,8 +200,7 @@ const PdfBook = forwardRef(function PdfBook(
 
     return () => {
       active = false
-      if (loadedDocument) loadedDocument.destroy().catch(() => {})
-      else if (loadingTask) loadingTask.destroy().catch(() => {})
+      if (loadingTask) loadingTask.destroy().catch(() => {})
       for (const assetPromise of assetCache.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})
       }
