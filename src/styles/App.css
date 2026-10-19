@@ -52,6 +52,29 @@
   letter-spacing: 0.01em;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.signout-button {
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e6e7e0;
+  border-radius: 7px;
+  color: #606a61;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.signout-button:hover {
+  background: #f0f2ed;
+}
+
 .status-dot,
 .eyebrow span {
   width: 7px;
@@ -237,6 +260,180 @@
   color: #a34e43;
   font-size: 12px;
   text-align: center;
+}
+
+.login-card {
+  width: min(100%, 430px);
+  margin: 0 auto;
+  padding: 30px;
+  box-sizing: border-box;
+  border: 1px solid #e9e7e1;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 35px rgba(46, 48, 41, 0.045);
+}
+
+.login-card .upload-illustration {
+  margin: 0 auto 17px;
+}
+
+.login-card h2,
+.share-card h2 {
+  margin: 0;
+  color: #27332c;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 550;
+  letter-spacing: -0.035em;
+}
+
+.login-card .upload-description {
+  margin-bottom: 20px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.login-form label {
+  margin-top: 3px;
+  color: #525d54;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.login-form input {
+  width: 100%;
+  min-height: 41px;
+  padding: 0 11px;
+  box-sizing: border-box;
+  border: 1px solid #e0e2db;
+  border-radius: 7px;
+  outline: none;
+  color: #303832;
+  background: #fff;
+  font-size: 13px;
+}
+
+.login-form input:focus {
+  border-color: #789178;
+  box-shadow: 0 0 0 3px rgba(97, 134, 107, 0.12);
+}
+
+.login-form .primary-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.session-loading {
+  min-height: 190px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.save-book-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #294d3d;
+  border-radius: 7px;
+  color: #fff;
+  background: #294d3d;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.save-book-button:hover:not(:disabled) {
+  background: #203f31;
+}
+
+.save-book-button:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.share-card {
+  margin-top: 15px;
+  padding: 17px 19px;
+  border: 1px solid #dce6d8;
+  border-radius: 10px;
+  background: #f3f7f1;
+}
+
+.share-card h2 {
+  font-size: 16px;
+}
+
+.share-card p {
+  margin: 5px 0 12px;
+  color: #757d73;
+  font-size: 12px;
+}
+
+.share-link-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.share-link-row a {
+  overflow: hidden;
+  color: #45634d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-error {
+  margin-top: 14px;
+}
+
+.secondary-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e4e5df;
+  border-radius: 7px;
+  color: #606a61;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.replace-button {
+  margin-top: 13px;
+}
+
+.secondary-button:hover {
+  background: #f2f3ef;
+}
+
+.empty-state {
+  width: min(100% - 48px, 540px);
+  margin: 16vh auto 0;
+  text-align: center;
+}
+
+.empty-state h1 {
+  margin: 0 0 12px;
+  color: #27332c;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 550;
+}
+
+.empty-state p {
+  color: #797b75;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.empty-state a {
+  color: #45634d;
 }
 
 .visually-hidden {
@@ -509,6 +706,19 @@
   gap: 19px;
 }
 
+.shared-content .intro {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.shared-content .eyebrow {
+  justify-content: center;
+}
+
+.shared-content .intro h1 {
+  font-size: clamp(32px, 4vw, 42px);
+}
+
 .page-counter {
   display: flex;
   align-items: baseline;
@@ -618,6 +828,24 @@
     font-size: 11px;
   }
 
+  .topbar-right {
+    gap: 8px;
+  }
+
+  .topbar-right .status-dot {
+    display: none;
+  }
+
+  .signout-button {
+    padding: 6px;
+    font-size: 0;
+  }
+
+  .signout-button svg {
+    width: 16px;
+    height: 16px;
+  }
+
   .main-content {
     width: min(100% - 32px, 560px);
     padding-top: 45px;
@@ -663,6 +891,14 @@
 
   .toolbar-actions {
     gap: 1px;
+  }
+
+  .save-book-button {
+    max-width: 125px;
+    overflow: hidden;
+    padding-inline: 8px;
+    text-overflow: ellipsis;
+    font-size: 10px;
   }
 
   .icon-button {

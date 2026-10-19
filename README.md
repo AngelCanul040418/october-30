@@ -1,6 +1,6 @@
 # Folio
 
-Panel inicial para cargar y revisar localmente un PDF, con animación de giro de página. La página de lectura para compartir con otra persona aún no está implementada.
+Panel privado para subir libros PDF y crear enlaces de lectura compartibles. El lector aplica una animación de giro de página.
 
 ## Tecnologías
 
@@ -24,7 +24,12 @@ npm install
 npm run dev
 ```
 
-Selecciona un PDF en el panel o arrástralo al área de carga. El documento se procesa en el navegador y no se sube ni se guarda en un servidor. El panel aún no tiene autenticación ni protección de acceso; no subas documentos privados.
+1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave pública (`anon`/`publishable`).
+2. Ejecuta el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase.
+3. En Supabase Auth, crea manualmente tu cuenta administradora y desactiva el registro público.
+4. Ejecuta `npm run dev` e inicia sesión en el panel con esa cuenta.
+
+El panel de administración requiere sesión. Al guardar un PDF se crea un enlace no predecible `/book/<uuid>`; cualquiera que tenga ese enlace podrá leer el libro. Los libros se almacenan en el bucket público `books` para que el enlace pueda abrirse sin cuentas de lector. No uses enlaces compartidos para documentos confidenciales: quien obtenga el enlace tendrá acceso.
 
 ## Producción
 
@@ -33,4 +38,4 @@ npm run build
 npm run preview
 ```
 
-El proyecto puede desplegarse en Vercel. Para guardar libros y generar enlaces compartibles habrá que conectar almacenamiento persistente. Supabase ofrece almacenamiento y base de datos; Vercel Blob es almacenamiento de archivos, no una base de datos.
+En Vercel, agrega `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` como variables de entorno para Production, Preview y Development. La clave anon/publishable está diseñada para el cliente y las políticas de Storage limitan las subidas a usuarios autenticados. Nunca pongas la contraseña de la base de datos ni la clave `service_role` en el frontend, en estas variables o en Git.
