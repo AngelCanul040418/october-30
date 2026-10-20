@@ -72,7 +72,6 @@ const FlipPage = forwardRef(function FlipPage(
   {
     pageIndex,
     pageNumber,
-    isCover = false,
     nodesRef,
     assetsRef,
   },
@@ -84,6 +83,7 @@ const FlipPage = forwardRef(function FlipPage(
       for (const image of node.querySelectorAll('img[data-pdf-page]')) {
         const asset = assetsRef.current.get(Number(image.dataset.pdfPage))
         if (asset) image.src = asset.url
+        else image.removeAttribute('src')
       }
     } else {
       delete nodesRef.current[pageIndex]
@@ -96,9 +96,9 @@ const FlipPage = forwardRef(function FlipPage(
   return (
     <div
       ref={setRef}
-      className={`flipbook-page${isCover ? ' flipbook-cover-page' : ''}`}
+      className="flipbook-page"
       data-page-number={pageNumber}
-      data-density={isCover ? 'hard' : 'soft'}
+      data-density="soft"
     >
       <img alt="" data-pdf-page={pageNumber} draggable="false" />
     </div>
@@ -300,22 +300,11 @@ const PdfBook = forwardRef(function PdfBook(
   const pages = useMemo(() => {
     if (!isReady || pageCount === 0) return []
 
-    const cover = (
-      <FlipPage
-        key="cover"
-        pageIndex={0}
-        pageNumber={COVER_PAGE_NUMBER}
-        isCover
-        nodesRef={pageNodesRef}
-        assetsRef={pageAssetsRef}
-      />
-    )
-    const pdfPages = Array.from({ length: pageCount - COVER_PAGE_NUMBER }, (_, index) => {
-      const pageNumber = index + COVER_PAGE_NUMBER + 1
-
+    return Array.from({ length: pageCount }, (_, index) => {
+      const pageNumber = index + COVER_PAGE_NUMBER
       return (
         <FlipPage
-          key={`pdf-page-${pageNumber}`}
+          key={pageNumber}
           pageIndex={pdfPageToFlipIndex(pageNumber)}
           pageNumber={pageNumber}
           nodesRef={pageNodesRef}
@@ -323,8 +312,6 @@ const PdfBook = forwardRef(function PdfBook(
         />
       )
     })
-
-    return [cover, ...pdfPages]
   }, [isReady, pageCount])
 
   const updatePage = useCallback((pageIndex, orientation = orientationRef.current) => {
