@@ -15,16 +15,6 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-const COVER_PAGE_NUMBER = 1
-
-function pdfPageToFlipIndex(pageNumber) {
-  return pageNumber - COVER_PAGE_NUMBER
-}
-
-function flipIndexToPdfPage(pageIndex) {
-  return pageIndex + COVER_PAGE_NUMBER
-}
-
 function renderPage(pdf, pageNumber, width) {
   return pdf.getPage(pageNumber).then(async (page) => {
     const baseViewport = page.getViewport({ scale: 1 })
@@ -106,8 +96,7 @@ const FlipPage = forwardRef(function FlipPage(
 })
 
 function getLandscapeSpreadStart(pageIndex) {
-  if (pageIndex <= 0) return 0
-  return pageIndex % 2 === 0 ? pageIndex - 1 : pageIndex
+  return pageIndex % 2 === 0 ? pageIndex : pageIndex - 1
 }
 
 const PdfBook = forwardRef(function PdfBook(
@@ -301,11 +290,11 @@ const PdfBook = forwardRef(function PdfBook(
     if (!isReady || pageCount === 0) return []
 
     return Array.from({ length: pageCount }, (_, index) => {
-      const pageNumber = index + COVER_PAGE_NUMBER
+      const pageNumber = index + 1
       return (
         <FlipPage
           key={pageNumber}
-          pageIndex={pdfPageToFlipIndex(pageNumber)}
+          pageIndex={index}
           pageNumber={pageNumber}
           nodesRef={pageNodesRef}
           assetsRef={pageAssetsRef}
@@ -317,13 +306,10 @@ const PdfBook = forwardRef(function PdfBook(
   const updatePage = useCallback((pageIndex, orientation = orientationRef.current) => {
     pageIndexRef.current = pageIndex
     orientationRef.current = orientation
-    callbacksRef.current.onPageChange(
-      Math.max(COVER_PAGE_NUMBER, flipIndexToPdfPage(pageIndex)),
-      orientation,
-    )
+    callbacksRef.current.onPageChange(pageIndex + 1, orientation)
 
     if (pdf) {
-      const firstVisiblePage = flipIndexToPdfPage(pageIndex)
+      const firstVisiblePage = pageIndex + 1
       const visiblePages = orientation === 'landscape'
         ? [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage + 2, firstVisiblePage + 3]
         : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
@@ -338,9 +324,7 @@ const PdfBook = forwardRef(function PdfBook(
       setClosedPosition('')
       return
     }
-    if (pageIndex === 0) {
-      setClosedPosition('flipbook-closed-start')
-    } else if (pageIndex === pageCount - 1) {
+    if (pageCount % 2 === 1 && pageIndex === pageCount - 1) {
       setClosedPosition('flipbook-closed-end')
     } else {
       setClosedPosition('')
@@ -423,9 +407,7 @@ const PdfBook = forwardRef(function PdfBook(
     const currentPageIndex = flip.getCurrentPageIndex()
     const orientation = flip.getOrientation()
     const destinationPageIndex = orientation === 'landscape'
-      ? direction > 0
-        ? currentPageIndex === 0 ? 1 : currentPageIndex + 2
-        : currentPageIndex <= 1 ? 0 : currentPageIndex - 2
+      ? currentPageIndex + direction * 2
       : currentPageIndex + direction
 
     if (destinationPageIndex < 0 || destinationPageIndex >= pageCount) return
@@ -455,8 +437,8 @@ const PdfBook = forwardRef(function PdfBook(
     const flip = bookReadyRef.current ? flipInstanceRef.current : null
     if (!flip || !pdf || busyRef.current) return
 
-    const targetPage = Math.max(COVER_PAGE_NUMBER, Math.min(pageCount, pageNumber))
-    const targetPageIndex = pdfPageToFlipIndex(targetPage)
+    const targetPage = Math.max(1, Math.min(pageCount, pageNumber))
+    const targetPageIndex = targetPage - 1
     const targetSpreadStart = orientationRef.current === 'landscape'
       ? getLandscapeSpreadStart(targetPageIndex)
       : targetPageIndex
@@ -539,7 +521,7 @@ const PdfBook = forwardRef(function PdfBook(
             usePortrait
             autoSize={false}
             maxShadowOpacity={0.72}
-            showCover
+            showCover={false}
             mobileScrollSupport
             useMouseEvents
             showPageCorners={false}

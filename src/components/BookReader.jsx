@@ -55,7 +55,7 @@ function BookReader({
   const flipBookRef = useRef(null)
   const canGoNext = pageCount > 1 && (
     orientation === 'landscape'
-      ? pageNumber === 1 || pageNumber + 1 < pageCount
+      ? pageNumber + 1 < pageCount
       : pageNumber < pageCount
   )
 
@@ -222,7 +222,7 @@ function BookReader({
         <div className="page-counter">
           <span className="current-page">
             {pageNumber.toString().padStart(2, '0')}
-            {orientation === 'landscape' && pageNumber > 1 && pageNumber < pageCount
+            {orientation === 'landscape' && pageNumber < pageCount
               ? `–${(pageNumber + 1).toString().padStart(2, '0')}`
               : ''}
           </span>
