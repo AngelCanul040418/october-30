@@ -15,6 +15,16 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+const COVER_PAGE_NUMBER = 1
+
+function pdfPageToFlipIndex(pageNumber) {
+  return pageNumber - COVER_PAGE_NUMBER
+}
+
+function flipIndexToPdfPage(pageIndex) {
+  return pageIndex + COVER_PAGE_NUMBER
+}
+
 function renderPage(pdf, pageNumber, width) {
   return pdf.getPage(pageNumber).then(async (page) => {
     const baseViewport = page.getViewport({ scale: 1 })
@@ -62,6 +72,7 @@ const FlipPage = forwardRef(function FlipPage(
   {
     pageIndex,
     pageNumber,
+    isCover = false,
     nodesRef,
     assetsRef,
   },
@@ -85,9 +96,9 @@ const FlipPage = forwardRef(function FlipPage(
   return (
     <div
       ref={setRef}
-      className="flipbook-page"
+      className={`flipbook-page${isCover ? ' flipbook-cover-page' : ''}`}
       data-page-number={pageNumber}
-      data-density="soft"
+      data-density={isCover ? 'hard' : 'soft'}
     >
       <img alt="" data-pdf-page={pageNumber} draggable="false" />
     </div>
@@ -287,26 +298,45 @@ const PdfBook = forwardRef(function PdfBook(
   }, [pageWidth, pdf, preparePages])
 
   const pages = useMemo(() => {
-    if (!isReady) return []
+    if (!isReady || pageCount === 0) return []
 
-    return Array.from({ length: pageCount }, (_, index) => (
+    const cover = (
       <FlipPage
-        key={index + 1}
-        pageIndex={index}
-        pageNumber={index + 1}
+        key="cover"
+        pageIndex={0}
+        pageNumber={COVER_PAGE_NUMBER}
+        isCover
         nodesRef={pageNodesRef}
         assetsRef={pageAssetsRef}
       />
-    ))
+    )
+    const pdfPages = Array.from({ length: pageCount - COVER_PAGE_NUMBER }, (_, index) => {
+      const pageNumber = index + COVER_PAGE_NUMBER + 1
+
+      return (
+        <FlipPage
+          key={`pdf-page-${pageNumber}`}
+          pageIndex={pdfPageToFlipIndex(pageNumber)}
+          pageNumber={pageNumber}
+          nodesRef={pageNodesRef}
+          assetsRef={pageAssetsRef}
+        />
+      )
+    })
+
+    return [cover, ...pdfPages]
   }, [isReady, pageCount])
 
   const updatePage = useCallback((pageIndex, orientation = orientationRef.current) => {
     pageIndexRef.current = pageIndex
     orientationRef.current = orientation
-    callbacksRef.current.onPageChange(Math.max(1, pageIndex + 1), orientation)
+    callbacksRef.current.onPageChange(
+      Math.max(COVER_PAGE_NUMBER, flipIndexToPdfPage(pageIndex)),
+      orientation,
+    )
 
     if (pdf) {
-      const firstVisiblePage = pageIndex + 1
+      const firstVisiblePage = flipIndexToPdfPage(pageIndex)
       const visiblePages = orientation === 'landscape'
         ? [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage + 2, firstVisiblePage + 3]
         : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
@@ -438,8 +468,8 @@ const PdfBook = forwardRef(function PdfBook(
     const flip = bookReadyRef.current ? flipInstanceRef.current : null
     if (!flip || !pdf || busyRef.current) return
 
-    const targetPage = Math.max(1, Math.min(pageCount, pageNumber))
-    const targetPageIndex = targetPage - 1
+    const targetPage = Math.max(COVER_PAGE_NUMBER, Math.min(pageCount, pageNumber))
+    const targetPageIndex = pdfPageToFlipIndex(targetPage)
     const targetSpreadStart = orientationRef.current === 'landscape'
       ? getLandscapeSpreadStart(targetPageIndex)
       : targetPageIndex
