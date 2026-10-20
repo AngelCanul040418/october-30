@@ -31,6 +31,16 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function getPageWidth(width, height, pageRatio, orientation, isFullscreen) {
+  const isSmallScreen = window.matchMedia('(max-width: 680px)').matches
+  const availableWidth = width - (isSmallScreen ? 24 : 40)
+  const spreadWidth = orientation === 'portrait' ? availableWidth : availableWidth / 2
+  const fullscreenHeight = height - (isSmallScreen ? 24 : 60)
+  const fullscreenPageWidth = isFullscreen ? fullscreenHeight / pageRatio : 520
+
+  return Math.max(180, Math.min(spreadWidth, fullscreenPageWidth, 520))
+}
+
 function BookReader({
   file,
   fileName,
@@ -64,18 +74,18 @@ function BookReader({
     if (!element) return undefined
 
     const observer = new ResizeObserver(([entry]) => {
-      const fullscreenPageWidth = document.fullscreenElement === element
-        ? (element.clientHeight - 60) / pageRatio
-        : 520
-      setPageWidth(Math.max(
-        180,
-        Math.min((entry.contentRect.width - 40) / 2, fullscreenPageWidth, 520),
+      setPageWidth(getPageWidth(
+        entry.contentRect.width,
+        entry.contentRect.height,
+        pageRatio,
+        orientation,
+        document.fullscreenElement === element,
       ))
     })
 
     observer.observe(element)
     return () => observer.disconnect()
-  }, [pageRatio])
+  }, [orientation, pageRatio])
 
   useEffect(() => {
     function updateFullscreenLayout() {
@@ -83,12 +93,12 @@ function BookReader({
       window.requestAnimationFrame(() => {
         const element = bookRef.current
         if (element) {
-          const fullscreenPageWidth = document.fullscreenElement === element
-            ? (element.clientHeight - 60) / pageRatio
-            : 520
-          setPageWidth(Math.max(
-            180,
-            Math.min((element.clientWidth - 40) / 2, fullscreenPageWidth, 520),
+          setPageWidth(getPageWidth(
+            element.clientWidth,
+            element.clientHeight,
+            pageRatio,
+            orientation,
+            document.fullscreenElement === element,
           ))
           window.requestAnimationFrame(() => flipBookRef.current?.refreshLayout())
         }
@@ -101,7 +111,7 @@ function BookReader({
       document.removeEventListener('fullscreenchange', updateFullscreenLayout)
       window.removeEventListener('resize', updateFullscreenLayout)
     }
-  }, [pageRatio])
+  }, [orientation, pageRatio])
 
   useEffect(() => {
     function handleKeyDown(event) {

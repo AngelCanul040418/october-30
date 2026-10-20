@@ -1943,11 +1943,19 @@
 
   .book-stage {
     min-height: 290px;
-    padding: 24px 50px;
+    padding: 20px 12px;
   }
 
   .reader-card-shared .book-stage {
     min-height: 68vh;
+  }
+
+  .book-stage:fullscreen {
+    padding: 8px;
+  }
+
+  .page-arrow {
+    display: none;
   }
 
   .reader-card-shared .stage-stickers img {
