@@ -43,6 +43,7 @@ function renderPage(pdf, pageNumber, width) {
     const url = URL.createObjectURL(blob)
     const image = new Image()
     image.src = url
+
     try {
       await image.decode()
     } catch (decodeError) {
@@ -70,18 +71,16 @@ const FlipPage = forwardRef(function FlipPage(
   const setRef = useCallback((node) => {
     if (node) {
       nodesRef.current[pageIndex] = node
-      for (const image of node.querySelectorAll('img[data-pdf-page]')) {
-        const asset = assetsRef.current.get(Number(image.dataset.pdfPage))
-        if (asset) image.src = asset.url
-        else image.removeAttribute('src')
-      }
+      const image = node.querySelector(`img[data-pdf-page="${pageNumber}"]`)
+      const asset = assetsRef.current.get(pageNumber)
+      if (image && asset) image.src = asset.url
     } else {
       delete nodesRef.current[pageIndex]
     }
 
     if (typeof forwardedRef === 'function') forwardedRef(node)
     else if (forwardedRef) forwardedRef.current = node
-  }, [assetsRef, forwardedRef, nodesRef, pageIndex])
+  }, [assetsRef, forwardedRef, nodesRef, pageIndex, pageNumber])
 
   return (
     <div
@@ -94,10 +93,6 @@ const FlipPage = forwardRef(function FlipPage(
     </div>
   )
 })
-
-function getLandscapeSpreadStart(pageIndex) {
-  return pageIndex % 2 === 0 ? pageIndex : pageIndex - 1
-}
 
 const PdfBook = forwardRef(function PdfBook(
   {
@@ -115,17 +110,13 @@ const PdfBook = forwardRef(function PdfBook(
   const [pageCount, setPageCount] = useState(0)
   const [isReady, setIsReady] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [closedPosition, setClosedPosition] = useState('')
   const [isTurning, setIsTurning] = useState(false)
-  const [isEdgeTurning, setIsEdgeTurning] = useState(false)
+
   const cacheRef = useRef(new Map())
   const pageAssetsRef = useRef(new Map())
   const pageNodesRef = useRef([])
-  const pdfRef = useRef(null)
   const bookRef = useRef(null)
   const flipInstanceRef = useRef(null)
-  const bookReadyRef = useRef(false)
-  const destroyTimerRef = useRef(null)
   const pageIndexRef = useRef(0)
   const orientationRef = useRef('portrait')
   const busyRef = useRef(false)
@@ -138,10 +129,8 @@ const PdfBook = forwardRef(function PdfBook(
   const applyPageAsset = useCallback((pageNumber, asset) => {
     pageAssetsRef.current.set(pageNumber, asset)
     for (const node of pageNodesRef.current) {
-      const images = node?.querySelectorAll(`img[data-pdf-page="${pageNumber}"]`) ?? []
-      for (const image of images) {
-        if (image.src !== asset.url) image.src = asset.url
-      }
+      const image = node?.querySelector(`img[data-pdf-page="${pageNumber}"]`)
+      if (image && image.src !== asset.url) image.src = asset.url
     }
   }, [])
 
@@ -169,13 +158,6 @@ const PdfBook = forwardRef(function PdfBook(
       })),
     )
 
-    if (pdfRef.current !== document) {
-      for (const { asset } of assets) {
-        URL.revokeObjectURL(asset.url)
-      }
-      return
-    }
-
     for (const { pageNumber, asset } of assets) {
       applyPageAsset(pageNumber, asset)
     }
@@ -188,13 +170,12 @@ const PdfBook = forwardRef(function PdfBook(
 
       cacheRef.current.delete(key)
       assetPromise.then((asset) => {
-        if (pageAssetsRef.current.get(cachedPage)?.url === asset.url) {
+        const storedAsset = pageAssetsRef.current.get(cachedPage)
+        if (storedAsset?.url === asset.url) {
           pageAssetsRef.current.delete(cachedPage)
           for (const node of pageNodesRef.current) {
-            const images = node?.querySelectorAll(`img[data-pdf-page="${cachedPage}"]`) ?? []
-            for (const image of images) {
-              if (image.src === asset.url) image.removeAttribute('src')
-            }
+            const image = node?.querySelector(`img[data-pdf-page="${cachedPage}"]`)
+            if (image && image.src === asset.url) image.removeAttribute('src')
           }
         }
         URL.revokeObjectURL(asset.url)
@@ -226,7 +207,6 @@ const PdfBook = forwardRef(function PdfBook(
         }
 
         const count = loadedDocument.numPages
-        pdfRef.current = loadedDocument
         setPdf(loadedDocument)
         setPageCount(count)
         callbacksRef.current.onLoadSuccess({
@@ -244,19 +224,13 @@ const PdfBook = forwardRef(function PdfBook(
     setPageCount(0)
     setIsReady(false)
     setLoadError('')
-    setClosedPosition('')
-    setIsTurning(false)
-    setIsEdgeTurning(false)
     busyRef.current = false
-    bookReadyRef.current = false
     pageIndexRef.current = 0
     orientationRef.current = 'portrait'
-    pdfRef.current = null
     loadPdf()
 
     return () => {
       active = false
-      pdfRef.current = null
       if (loadingTask) loadingTask.destroy().catch(() => {})
       for (const assetPromise of assetCache.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})
@@ -284,7 +258,7 @@ const PdfBook = forwardRef(function PdfBook(
     return () => {
       active = false
     }
-  }, [pageWidth, pdf, preparePages])
+  }, [pdf, preparePages])
 
   const pages = useMemo(() => {
     if (!isReady || pageCount === 0) return []
@@ -308,160 +282,125 @@ const PdfBook = forwardRef(function PdfBook(
     orientationRef.current = orientation
     callbacksRef.current.onPageChange(pageIndex + 1, orientation)
 
-    if (pdf) {
-      const firstVisiblePage = pageIndex + 1
-      const visiblePages = orientation === 'landscape'
-        ? [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage + 2, firstVisiblePage + 3]
-        : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
-      preparePages(pdf, visiblePages)
-        .then(() => pruneCache(firstVisiblePage))
-        .catch((renderError) => callbacksRef.current.onLoadError(renderError))
-    }
+    if (!pdf) return
+
+    const firstVisiblePage = pageIndex + 1
+    const visiblePages = orientation === 'landscape'
+      ? [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage + 2, firstVisiblePage + 3]
+      : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
+
+    preparePages(pdf, visiblePages)
+      .then(() => pruneCache(firstVisiblePage))
+      .catch((renderError) => callbacksRef.current.onLoadError(renderError))
   }, [pdf, preparePages, pruneCache])
 
-  const alignBook = useCallback((pageIndex, orientation) => {
-    if (orientation !== 'landscape') {
-      setClosedPosition('')
-      return
-    }
-    if (pageCount % 2 === 1 && pageIndex === pageCount - 1) {
-      setClosedPosition('flipbook-closed-end')
-    } else {
-      setClosedPosition('')
-    }
-  }, [pageCount])
-
-  const handleFlip = useCallback((event) => {
-    const flip = bookReadyRef.current ? flipInstanceRef.current : null
-    if (!flip) return
-    const orientation = flip.getOrientation()
-    updatePage(event.data, orientation)
-    alignBook(event.data, orientation)
-  }, [alignBook, updatePage])
-
   const handleInit = useCallback((event) => {
-    if (!isReady) return
-    const flip = bookRef.current?.pageFlip()
-    if (!flip || flip.getPageCount() !== pageCount) return
+    if (!bookRef.current) return
+    const flip = bookRef.current.pageFlip()
+    if (!flip) return
 
     flipInstanceRef.current = flip
-    bookReadyRef.current = true
-    const currentIndex = Math.max(0, Math.min(pageCount - 1, pageIndexRef.current))
-    const targetIndex = event.data.mode === 'landscape'
-      ? getLandscapeSpreadStart(currentIndex)
-      : currentIndex
-    if (flip.getCurrentPageIndex() !== targetIndex) {
-      flip.turnToPage(targetIndex)
-    }
-    const pageIndex = flip.getCurrentPageIndex()
-    updatePage(pageIndex, event.data.mode)
-    alignBook(pageIndex, event.data.mode)
-  }, [alignBook, isReady, pageCount, updatePage])
+    const initialIndex = 0
+    if (flip.getCurrentPageIndex() !== initialIndex) flip.turnToPage(initialIndex)
+    updatePage(initialIndex, event.data.mode)
+  }, [updatePage])
+
+  const handleFlip = useCallback((event) => {
+    const flip = flipInstanceRef.current
+    if (!flip) return
+    updatePage(event.data, flip.getOrientation())
+  }, [updatePage])
 
   const handleUpdate = useCallback((event) => {
-    if (!bookReadyRef.current) return
-    const pageIndex = event.data.page ?? 0
-    updatePage(pageIndex, event.data.mode)
-    alignBook(pageIndex, event.data.mode)
-  }, [alignBook, updatePage])
+    const flip = flipInstanceRef.current
+    if (!flip) return
+    updatePage(event.data.page ?? 0, event.data.mode)
+  }, [updatePage])
 
   const handleOrientation = useCallback((event) => {
-    const flip = bookReadyRef.current ? flipInstanceRef.current : null
+    const flip = flipInstanceRef.current
     if (!flip) return
 
     const currentPageIndex = pageIndexRef.current
     const targetPageIndex = event.data === 'landscape'
-      ? getLandscapeSpreadStart(currentPageIndex)
+      ? currentPageIndex - (currentPageIndex % 2)
       : currentPageIndex
-    if (targetPageIndex < 0 || targetPageIndex >= pageCount) return
 
+    if (targetPageIndex < 0 || targetPageIndex >= pageCount) return
     flip.turnToPage(targetPageIndex)
-    updatePage(flip.getCurrentPageIndex(), event.data)
-    alignBook(flip.getCurrentPageIndex(), event.data)
-  }, [alignBook, pageCount, updatePage])
+    updatePage(targetPageIndex, event.data)
+  }, [pageCount, updatePage])
 
   const handleStateChange = useCallback((event) => {
     const isBusy = event.data !== 'read'
     busyRef.current = isBusy
     setIsTurning(isBusy)
     callbacksRef.current.onBusyChange(isBusy)
-    const flip = bookReadyRef.current ? flipInstanceRef.current : null
-    if (!flip) return
 
-    const currentPage = flip.getCurrentPageIndex()
-    const isEdgeTurn = currentPage <= 2 || currentPage >= pageCount - 3
-    setIsEdgeTurning(isBusy && isEdgeTurn)
+    const flip = flipInstanceRef.current
+    if (!flip || !pdf) return
 
-    if (!isBusy && pdf) {
+    if (!isBusy) {
       const pageIndex = flip.getCurrentPageIndex()
-      const orientation = flip.getOrientation()
-      updatePage(pageIndex, orientation)
-      alignBook(pageIndex, orientation)
+      updatePage(pageIndex, flip.getOrientation())
     }
-  }, [alignBook, pageCount, pdf, updatePage])
+  }, [pdf, updatePage])
 
   const navigate = useCallback(async (direction) => {
-    const flip = bookReadyRef.current ? flipInstanceRef.current : null
+    const flip = flipInstanceRef.current
     if (!flip || !pdf || busyRef.current) return
 
-    const currentPageIndex = flip.getCurrentPageIndex()
+    const currentIndex = flip.getCurrentPageIndex()
     const orientation = flip.getOrientation()
-    const destinationPageIndex = orientation === 'landscape'
-      ? currentPageIndex + direction * 2
-      : currentPageIndex + direction
+    const step = orientation === 'landscape' ? 2 : 1
+    const destinationIndex = Math.min(
+      Math.max(0, currentIndex + direction * step),
+      Math.max(0, pageCount - 1),
+    )
 
-    if (destinationPageIndex < 0 || destinationPageIndex >= pageCount) return
+    if (destinationIndex === currentIndex) return
 
     busyRef.current = true
     callbacksRef.current.onBusyChange(true)
+
     try {
-      const pagesToPrepare = orientation === 'landscape'
-        ? [destinationPageIndex + 1, destinationPageIndex + 2, destinationPageIndex + 3]
-        : [destinationPageIndex + 1, destinationPageIndex + 2]
-      await preparePages(pdf, pagesToPrepare)
-      if (!bookReadyRef.current || flipInstanceRef.current !== flip) {
-        busyRef.current = false
-        callbacksRef.current.onBusyChange(false)
-        return
+      const pagesToPrepare = []
+      for (let index = destinationIndex; index <= destinationIndex + step + 1; index += 1) {
+        if (index >= 0 && index < pageCount) pagesToPrepare.push(index + 1)
       }
+      await preparePages(pdf, pagesToPrepare)
       if (direction > 0) flip.flipNext()
       else flip.flipPrev()
-    } catch (renderError) {
-      busyRef.current = false
-      callbacksRef.current.onBusyChange(false)
-      callbacksRef.current.onLoadError(renderError)
-    }
-  }, [pageCount, pdf, preparePages])
-
-  const goToPage = useCallback(async (pageNumber) => {
-    const flip = bookReadyRef.current ? flipInstanceRef.current : null
-    if (!flip || !pdf || busyRef.current) return
-
-    const targetPage = Math.max(1, Math.min(pageCount, pageNumber))
-    const targetPageIndex = targetPage - 1
-    const targetSpreadStart = orientationRef.current === 'landscape'
-      ? getLandscapeSpreadStart(targetPageIndex)
-      : targetPageIndex
-    busyRef.current = true
-    callbacksRef.current.onBusyChange(true)
-    try {
-      const targetSpread = orientationRef.current === 'landscape'
-        ? [targetSpreadStart + 1, targetSpreadStart + 2]
-        : [targetPage]
-      await preparePages(pdf, targetSpread)
-      if (!bookReadyRef.current || flipInstanceRef.current !== flip) return
-      flip.turnToPage(targetSpreadStart)
-      const current = flip.getCurrentPageIndex()
-      const orientation = flip.getOrientation()
-      updatePage(current, orientation)
-      alignBook(current, orientation)
     } catch (renderError) {
       callbacksRef.current.onLoadError(renderError)
     } finally {
       busyRef.current = false
       callbacksRef.current.onBusyChange(false)
     }
-  }, [alignBook, pageCount, pdf, preparePages, updatePage])
+  }, [pageCount, pdf, preparePages])
+
+  const goToPage = useCallback(async (pageNumber) => {
+    const flip = flipInstanceRef.current
+    if (!flip || !pdf || busyRef.current) return
+
+    const targetPage = Math.max(1, Math.min(pageCount, pageNumber))
+    const targetIndex = targetPage - 1
+    busyRef.current = true
+    callbacksRef.current.onBusyChange(true)
+
+    try {
+      const pagesToPrepare = [targetPage, targetPage + 1, targetPage - 1]
+        .filter((value) => value >= 1 && value <= pageCount)
+      await preparePages(pdf, pagesToPrepare)
+      flip.turnToPage(targetIndex)
+      updatePage(targetIndex, flip.getOrientation())
+    } catch (renderError) {
+      callbacksRef.current.onLoadError(renderError)
+    } finally {
+      busyRef.current = false
+      callbacksRef.current.onBusyChange(false)
+    }
+  }, [pageCount, pdf, preparePages, updatePage])
 
   useImperativeHandle(forwardedRef, () => ({
     next: () => navigate(1),
@@ -469,35 +408,11 @@ const PdfBook = forwardRef(function PdfBook(
     goToPage,
   }), [goToPage, navigate])
 
-  useEffect(() => {
-    if (!isReady) {
-      bookReadyRef.current = false
-      busyRef.current = false
-      if (flipInstanceRef.current) {
-        flipInstanceRef.current.destroy()
-        flipInstanceRef.current = null
-      }
-    }
-  }, [isReady])
-
-  useEffect(() => {
-    if (destroyTimerRef.current !== null) {
-      window.clearTimeout(destroyTimerRef.current)
-      destroyTimerRef.current = null
-      if (flipInstanceRef.current) bookReadyRef.current = true
-    }
-
-    return () => {
-      const flip = bookReadyRef.current ? flipInstanceRef.current : null
-      if (!flip) return
-
-      bookReadyRef.current = false
-      destroyTimerRef.current = window.setTimeout(() => {
-        destroyTimerRef.current = null
-        if (flipInstanceRef.current !== flip) return
-        flip.destroy()
-        flipInstanceRef.current = null
-      }, 0)
+  useEffect(() => () => {
+    const flip = flipInstanceRef.current
+    if (flip) {
+      flip.destroy()
+      flipInstanceRef.current = null
     }
   }, [])
 
@@ -507,7 +422,7 @@ const PdfBook = forwardRef(function PdfBook(
         <div className="flipbook-host">
           <HTMLFlipBook
             ref={bookRef}
-            className={`flipbook ${closedPosition}${isTurning ? ' flipbook-turning' : ''}${isEdgeTurning ? ' flipbook-edge-turning' : ''}`}
+            className={`flipbook${isTurning ? ' flipbook-turning' : ''}`}
             style={{ width: '100%', height: pageHeight, '--flipbook-page-width': `${pageWidth}px` }}
             width={pageWidth}
             height={pageHeight}
