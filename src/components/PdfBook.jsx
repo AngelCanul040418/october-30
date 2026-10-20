@@ -69,7 +69,7 @@ const FlipPage = forwardRef(function FlipPage({ pageNumber, asset }, forwardedRe
     >
       <img
         alt=""
-        src={asset?.url || ''}
+        src={asset?.url}
         draggable="false"
         style={{
           width: '100%',
@@ -154,6 +154,7 @@ const PdfBook = forwardRef(function PdfBook(
   useEffect(() => {
     let active = true
     let loadingTask
+    const assetCache = cacheRef.current
 
     async function loadPdf() {
       try {
@@ -199,10 +200,10 @@ const PdfBook = forwardRef(function PdfBook(
     return () => {
       active = false
       if (loadingTask) loadingTask.destroy().catch(() => {})
-      for (const assetPromise of cacheRef.current.values()) {
+      for (const assetPromise of assetCache.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})
       }
-      cacheRef.current.clear()
+      assetCache.clear()
     }
   }, [file])
 
@@ -401,7 +402,10 @@ const PdfBook = forwardRef(function PdfBook(
   return (
     <div className="pdf-document">
       {isReady ? (
-        <div className="flipbook-host">
+        <div
+          className="flipbook-host"
+          style={{ width: pageWidth, flex: '0 0 auto' }}
+        >
           <HTMLFlipBook
             ref={bookRef}
             className={`flipbook${isTurning ? ' flipbook-turning' : ''}`}
@@ -409,8 +413,8 @@ const PdfBook = forwardRef(function PdfBook(
             width={pageWidth}
             height={pageHeight}
             size="stretch"
-            minWidth={180}
-            maxWidth={520}
+            minWidth={pageWidth}
+            maxWidth={pageWidth}
             minHeight={280}
             maxHeight={900}
             drawShadow
