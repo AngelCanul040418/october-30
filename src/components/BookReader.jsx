@@ -2,9 +2,10 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Download,
-  FileText,
   Maximize2,
+  Minimize2,
   X,
 } from 'lucide-react'
 
@@ -37,6 +38,7 @@ function BookReader({
   bookSubtitle = '',
   bookDescription = '',
   bookAuthor = '',
+  coverImage = '',
   fileSize,
   shareUrl,
   saving,
@@ -50,6 +52,8 @@ function BookReader({
   const [pageRatio, setPageRatio] = useState(1.414)
   const [orientation, setOrientation] = useState('portrait')
   const [isTurning, setIsTurning] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [fullscreenError, setFullscreenError] = useState('')
   const [pageWidth, setPageWidth] = useState(640)
   const bookRef = useRef(null)
   const flipBookRef = useRef(null)
@@ -60,12 +64,44 @@ function BookReader({
     if (!element) return undefined
 
     const observer = new ResizeObserver(([entry]) => {
-      setPageWidth(Math.max(180, Math.min((entry.contentRect.width - 40) / 2, 520)))
+      const fullscreenPageWidth = document.fullscreenElement === element
+        ? (element.clientHeight - 60) / pageRatio
+        : 520
+      setPageWidth(Math.max(
+        180,
+        Math.min((entry.contentRect.width - 40) / 2, fullscreenPageWidth, 520),
+      ))
     })
 
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
+  }, [pageRatio])
+
+  useEffect(() => {
+    function updateFullscreenLayout() {
+      setIsFullscreen(document.fullscreenElement === bookRef.current)
+      window.requestAnimationFrame(() => {
+        const element = bookRef.current
+        if (element) {
+          const fullscreenPageWidth = document.fullscreenElement === element
+            ? (element.clientHeight - 60) / pageRatio
+            : 520
+          setPageWidth(Math.max(
+            180,
+            Math.min((element.clientWidth - 40) / 2, fullscreenPageWidth, 520),
+          ))
+          window.requestAnimationFrame(() => flipBookRef.current?.refreshLayout())
+        }
+      })
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenLayout)
+    window.addEventListener('resize', updateFullscreenLayout)
+    return () => {
+      document.removeEventListener('fullscreenchange', updateFullscreenLayout)
+      window.removeEventListener('resize', updateFullscreenLayout)
+    }
+  }, [pageRatio])
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -101,25 +137,44 @@ function BookReader({
   }
 
   function downloadPdf() {
+    const downloadName = fileName.split(/[\\/]/).pop() || 'libro.pdf'
+    const anchor = document.createElement('a')
+
     if (file instanceof File) {
       const url = URL.createObjectURL(file)
-      const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = fileName
+      anchor.download = downloadName
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 1000)
       return
     }
 
-    window.open(file, '_blank', 'noopener,noreferrer')
+    anchor.href = `${file}${file.includes('?') ? '&' : '?'}download=${encodeURIComponent(downloadName)}`
+    anchor.download = downloadName
+    anchor.click()
+  }
+
+  async function toggleFullscreen() {
+    setFullscreenError('')
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      } else {
+        await bookRef.current?.requestFullscreen?.()
+      }
+    } catch (requestError) {
+      setFullscreenError(`No se pudo cambiar a pantalla completa: ${requestError.message}`)
+    }
   }
 
   return (
     <section className={`reader-card${onClose ? '' : ' reader-card-shared'}`} aria-label="Lector de PDF">
       <div className="reader-toolbar">
         <div className="document-info">
-          <span className={`document-icon${!onClose ? ' document-icon-kitty' : ''}`}>
-            {!onClose ? <img src="/sticker-3.png" alt="" /> : <FileText size={18} />}
+          <span className={`document-icon${coverImage ? ' document-icon-cover' : ''}`}>
+            {coverImage
+              ? <img src={coverImage} alt="" />
+              : <BookOpen size={18} />}
           </span>
           <div className="document-copy">
             <span className="document-name" title={bookTitle || fileName}>{bookTitle || fileName}</span>
@@ -152,11 +207,11 @@ function BookReader({
           </button>
           <button
             className="icon-button"
-            onClick={() => bookRef.current?.requestFullscreen?.()}
-            aria-label="Ver en pantalla completa"
-            title="Pantalla completa"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Ver en pantalla completa'}
+            title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
           >
-            <Maximize2 size={18} />
+            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
         </div>
       </div>
@@ -252,6 +307,7 @@ function BookReader({
           </button>
         </div>
       </div>
+      {fullscreenError && <p className="metadata-load-error" role="alert">{fullscreenError}</p>}
     </section>
   )
 }

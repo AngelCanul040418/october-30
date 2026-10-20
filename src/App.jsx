@@ -19,7 +19,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<AdminPage />} />
-        <Route path="/book/:bookId" element={<SharedBookPage />} />
+        <Route path="/book/:bookSlug" element={<SharedBookPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

@@ -457,7 +457,17 @@ const PdfBook = forwardRef(function PdfBook(
     next: () => navigate(1),
     previous: () => navigate(-1),
     goToPage,
-  }), [goToPage, navigate])
+    refreshLayout: () => {
+      const flip = flipInstanceRef.current
+      if (!flip) return
+
+      flip.update()
+      const pageIndex = flip.getCurrentPageIndex()
+      const orientation = flip.getOrientation()
+      updatePage(pageIndex, orientation)
+      alignBook(pageIndex, orientation)
+    },
+  }), [alignBook, goToPage, navigate, updatePage])
 
   useEffect(() => () => {
     const flip = flipInstanceRef.current

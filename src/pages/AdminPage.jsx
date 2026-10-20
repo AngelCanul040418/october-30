@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, Copy, FileText, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpen,
+  Check,
+  Copy,
+  FileText,
+  Pencil,
+  Plus,
+  QrCode,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import BookReader from '../components/BookReader.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import {
@@ -10,11 +23,51 @@ import {
 
 const bookIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const emptyMetadata = { title: '', subtitle: '', description: '', author: '' }
-const bookFields = 'id,title,subtitle,description,author,file_path,created_at,updated_at'
+const bookFields = 'id,title,subtitle,description,author,file_path,slug,original_filename,cover_path,created_at,updated_at'
+const MAX_COVER_SIZE = 10 * 1024 * 1024
 
 function createShareUrl(book) {
-  const params = new URLSearchParams({ title: book.title })
-  return `${window.location.origin}/book/${book.id}?${params.toString()}`
+  return `${window.location.origin}/book/${encodeURIComponent(book.slug || book.id)}`
+}
+
+function slugifyTitle(title) {
+  return title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'libro'
+}
+
+function createUniqueSlug(title, books, excludedId = '') {
+  const baseSlug = slugifyTitle(title)
+  const existingSlugs = new Set(
+    books
+      .filter((book) => book.id !== excludedId)
+      .map((book) => book.slug)
+      .filter(Boolean),
+  )
+  let slug = baseSlug
+  let suffix = 2
+
+  while (existingSlugs.has(slug)) {
+    slug = `${baseSlug}-${suffix}`
+    suffix += 1
+  }
+
+  return slug
+}
+
+function getCoverUrl(coverPath) {
+  return coverPath && supabase
+    ? supabase.storage.from(BOOKS_BUCKET).getPublicUrl(coverPath).data.publicUrl
+    : ''
+}
+
+function getCoverExtension(file) {
+  if (file.type === 'image/png') return 'png'
+  if (file.type === 'image/webp') return 'webp'
+  return 'jpg'
 }
 
 function AdminPage() {
@@ -23,6 +76,9 @@ function AdminPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [file, setFile] = useState(null)
+  const [coverFile, setCoverFile] = useState(null)
+  const [coverPreview, setCoverPreview] = useState('')
+  const [coverRemoved, setCoverRemoved] = useState(false)
   const [bookTitle, setBookTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [description, setDescription] = useState('')
@@ -38,19 +94,28 @@ function AdminPage() {
   const [deletingBookId, setDeletingBookId] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedBookId, setCopiedBookId] = useState('')
+  const [qrBook, setQrBook] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const uploadRef = useRef(null)
+  const coverUploadRef = useRef(null)
+
+  useEffect(() => () => {
+    if (coverPreview) URL.revokeObjectURL(coverPreview)
+  }, [coverPreview])
 
   useEffect(() => {
-    if (!editingBook) return undefined
+    if (!editingBook && !qrBook) return undefined
 
     function handleKeyDown(event) {
-      if (event.key === 'Escape' && !saving) setEditingBook(null)
+      if (event.key === 'Escape' && !saving) {
+        setEditingBook(null)
+        setQrBook(null)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editingBook, saving])
+  }, [editingBook, qrBook, saving])
 
   const fetchBooks = useCallback(async () => {
     if (!supabase) return []
@@ -89,6 +154,7 @@ function AdminPage() {
           id,
           file_path: `${id}.pdf`,
           title: metadata?.title || 'Libro compartido',
+          original_filename: metadata?.original_filename || `${metadata?.title || 'Libro compartido'}.pdf`,
           created_at: metadata?.created_at || entry.created_at,
           hasMetadata: Boolean(metadata),
         }
@@ -171,8 +237,12 @@ function AdminPage() {
     if (signOutError) setError(`No se pudo cerrar sesión: ${signOutError.message}`)
     else {
       setFile(null)
+      setCoverFile(null)
+      setCoverPreview('')
+      setCoverRemoved(false)
       setShareUrl('')
       setEditingBook(null)
+      setQrBook(null)
       setBooks([])
       setError('')
     }
@@ -201,6 +271,28 @@ function AdminPage() {
     event.target.value = ''
   }
 
+  function selectCover(nextFile) {
+    if (!nextFile) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(nextFile.type)) {
+      setError('La portada debe ser una imagen JPG, PNG o WebP.')
+      return
+    }
+    if (nextFile.size > MAX_COVER_SIZE) {
+      setError('La portada supera el límite de 10 MB. Elige una imagen más pequeña.')
+      return
+    }
+
+    setCoverFile(nextFile)
+    setCoverPreview(URL.createObjectURL(nextFile))
+    setCoverRemoved(false)
+    setError('')
+  }
+
+  function handleCoverChange(event) {
+    selectCover(event.target.files?.[0])
+    event.target.value = ''
+  }
+
   function handleDrop(event) {
     event.preventDefault()
     setIsDragging(false)
@@ -215,6 +307,8 @@ function AdminPage() {
     setSaving(true)
     const bookId = crypto.randomUUID()
     const filePath = `${bookId}.pdf`
+    const bookSlug = createUniqueSlug(bookTitle, books)
+    const uploadedPaths = []
     try {
       const { error: uploadError } = await supabase.storage
         .from(BOOKS_BUCKET)
@@ -225,11 +319,30 @@ function AdminPage() {
         })
 
       if (uploadError) throw uploadError
+      uploadedPaths.push(filePath)
+
+      let coverPath = null
+      if (coverFile) {
+        coverPath = `${bookId}-cover.${getCoverExtension(coverFile)}`
+        const { error: coverUploadError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .upload(coverPath, coverFile, {
+            cacheControl: '3600',
+            contentType: coverFile.type,
+            upsert: false,
+          })
+
+        if (coverUploadError) throw coverUploadError
+        uploadedPaths.push(coverPath)
+      }
 
       const { error: metadataError } = await supabase.from('books').insert({
         id: bookId,
         owner_id: user.id,
         file_path: filePath,
+        slug: bookSlug,
+        original_filename: file.name,
+        cover_path: coverPath,
         title: bookTitle.trim(),
         subtitle: subtitle.trim(),
         description: description.trim(),
@@ -237,16 +350,11 @@ function AdminPage() {
         updated_at: new Date().toISOString(),
       })
 
-      if (metadataError) {
-        const { error: cleanupError } = await supabase.storage.from(BOOKS_BUCKET).remove([filePath])
-        if (cleanupError) {
-          throw new Error(`${metadataError.message}. Además, no se pudo retirar el PDF incompleto: ${cleanupError.message}`)
-        }
-        throw metadataError
-      }
+      if (metadataError) throw metadataError
 
       const savedBook = {
         id: bookId,
+        slug: bookSlug,
         title: bookTitle.trim(),
         subtitle: subtitle.trim(),
         description: description.trim(),
@@ -256,7 +364,14 @@ function AdminPage() {
       await loadBooks()
       setSuccess(`“${savedBook.title}” se guardó correctamente y ya puedes compartir su enlace.`)
     } catch (uploadError) {
-      setError(`No se pudo guardar el libro: ${uploadError.message}`)
+      let message = uploadError.message
+      if (uploadedPaths.length) {
+        const { error: cleanupError } = await supabase.storage.from(BOOKS_BUCKET).remove(uploadedPaths)
+        if (cleanupError) {
+          message = `${message}. Además, no se pudieron retirar los archivos incompletos: ${cleanupError.message}`
+        }
+      }
+      setError(`No se pudo guardar el libro: ${message}`)
     } finally {
       setSaving(false)
     }
@@ -271,12 +386,18 @@ function AdminPage() {
     setError('')
     setSuccess('')
     setFile(null)
+    setCoverFile(null)
+    setCoverPreview('')
+    setCoverRemoved(false)
     setShareUrl('')
     setActiveView('dashboard')
   }
 
   function startNewBook() {
     setFile(null)
+    setCoverFile(null)
+    setCoverPreview('')
+    setCoverRemoved(false)
     setBookTitle('')
     setSubtitle('')
     setDescription('')
@@ -290,6 +411,9 @@ function AdminPage() {
 
   function returnToDashboard() {
     setFile(null)
+    setCoverFile(null)
+    setCoverPreview('')
+    setCoverRemoved(false)
     setBookTitle('')
     setSubtitle('')
     setDescription('')
@@ -308,11 +432,31 @@ function AdminPage() {
     setError('')
     setSuccess('')
     setSaving(true)
+    let uploadedCoverPath = ''
+    let coverMetadataSaved = false
+    let cleanupWarning = ''
     try {
+      let coverPath = coverRemoved ? null : editingBook.cover_path
+      if (coverFile) {
+        uploadedCoverPath = `${editingBook.id}-cover-${crypto.randomUUID()}.${getCoverExtension(coverFile)}`
+        const { error: coverUploadError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .upload(uploadedCoverPath, coverFile, {
+            cacheControl: '3600',
+            contentType: coverFile.type,
+            upsert: false,
+          })
+        if (coverUploadError) throw coverUploadError
+        coverPath = uploadedCoverPath
+      }
+
       const { error: updateError } = await supabase.from('books').upsert({
         id: editingBook.id,
         owner_id: user.id,
         file_path: editingBook.file_path,
+        slug: createUniqueSlug(bookTitle, books, editingBook.id),
+        original_filename: editingBook.original_filename || `${editingBook.title}.pdf`,
+        cover_path: coverPath,
         title: bookTitle.trim(),
         subtitle: subtitle.trim(),
         description: description.trim(),
@@ -320,16 +464,42 @@ function AdminPage() {
         updated_at: new Date().toISOString(),
       })
       if (updateError) throw updateError
+      coverMetadataSaved = true
+
+      if (
+        editingBook.cover_path
+        && editingBook.cover_path !== coverPath
+      ) {
+        const { error: removeCoverError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .remove([editingBook.cover_path])
+        if (removeCoverError) {
+          cleanupWarning = `Los cambios se guardaron, pero no se pudo retirar la portada anterior: ${removeCoverError.message}`
+        }
+      }
 
       await loadBooks()
       setEditingBook(null)
+      setCoverFile(null)
+      setCoverPreview('')
+      setCoverRemoved(false)
       setBookTitle('')
       setSubtitle('')
       setDescription('')
       setAuthor('')
       setSuccess(`Los cambios de “${editingBook.title}” se guardaron correctamente.`)
+      if (cleanupWarning) setError(cleanupWarning)
     } catch (updateError) {
-      setError(`No se pudieron guardar los cambios: ${updateError.message}`)
+      let message = updateError.message
+      if (uploadedCoverPath && !coverMetadataSaved) {
+        const { error: cleanupError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .remove([uploadedCoverPath])
+        if (cleanupError) {
+          message = `${message}. No se pudo retirar la portada nueva: ${cleanupError.message}`
+        }
+      }
+      setError(`No se pudieron guardar los cambios: ${message}`)
     } finally {
       setSaving(false)
     }
@@ -343,7 +513,8 @@ function AdminPage() {
     setSuccess('')
     setDeletingBookId(book.id)
     try {
-      const { error: storageError } = await supabase.storage.from(BOOKS_BUCKET).remove([book.file_path])
+      const pathsToRemove = [book.file_path, book.cover_path].filter(Boolean)
+      const { error: storageError } = await supabase.storage.from(BOOKS_BUCKET).remove(pathsToRemove)
       if (storageError) throw storageError
 
       const { error: metadataError } = await supabase.from('books').delete().eq('id', book.id)
@@ -365,6 +536,17 @@ function AdminPage() {
   async function copyShareLink() {
     try {
       await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch (clipboardError) {
+      setError(`No se pudo copiar el enlace: ${clipboardError.message}`)
+    }
+  }
+
+  async function copyQrLink() {
+    if (!qrBook) return
+    try {
+      await navigator.clipboard.writeText(createShareUrl(qrBook))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch (clipboardError) {
@@ -430,6 +612,55 @@ function AdminPage() {
             disabled={disabled}
           />
         </label>
+        <div className="book-title-input cover-field">
+          <span>Portada</span>
+          <div className="cover-picker">
+            <div className="cover-preview">
+              {(coverPreview || (!coverRemoved && getCoverUrl(editingBook?.cover_path))) ? (
+                <img
+                  src={coverPreview || getCoverUrl(editingBook?.cover_path)}
+                  alt="Vista previa de la portada"
+                />
+              ) : (
+                <BookOpen size={22} />
+              )}
+            </div>
+            <div className="cover-picker-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => coverUploadRef.current?.click()}
+                disabled={disabled}
+              >
+                {editingBook?.cover_path && !coverRemoved ? 'Cambiar imagen' : 'Elegir imagen'}
+              </button>
+              {(coverFile || (editingBook?.cover_path && !coverRemoved)) && (
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setCoverFile(null)
+                    setCoverPreview('')
+                    setCoverRemoved(Boolean(editingBook?.cover_path))
+                  }}
+                  disabled={disabled}
+                >
+                  Quitar
+                </button>
+              )}
+              <span>JPG, PNG o WebP · Máximo 10 MB</span>
+            </div>
+            <input
+              ref={coverUploadRef}
+              className="visually-hidden"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleCoverChange}
+              aria-label="Elegir imagen de portada"
+              disabled={disabled}
+            />
+          </div>
+        </div>
       </div>
     )
   }
@@ -497,9 +728,9 @@ function AdminPage() {
               <>
                 <div className="dashboard-heading">
                   <div>
-                    <p className="eyebrow">BIBLIOTECA</p>
+                    <p className="eyebrow">TU BIBLIOTECA PRIVADA</p>
                     <h2>Todos tus libros</h2>
-                    <p>Administra tus publicaciones y comparte sus enlaces.</p>
+                    <p>Organiza tus publicaciones y comparte cada libro con un enlace o código QR.</p>
                   </div>
                   <button className="primary-button" onClick={startNewBook}>
                     <Plus size={17} />
@@ -534,7 +765,11 @@ function AdminPage() {
                       {books.map((book) => (
                         <li className="book-list-item" key={book.id}>
                           <div className="book-list-info">
-                            <span className="book-list-icon"><FileText size={17} /></span>
+                            <span className="book-list-icon">
+                              {book.cover_path
+                                ? <img src={getCoverUrl(book.cover_path)} alt="" />
+                                : <BookOpen size={17} />}
+                            </span>
                             <div className="book-list-copy">
                               <strong>{book.title}</strong>
                               <span>
@@ -560,6 +795,14 @@ function AdminPage() {
                               title="Copiar enlace"
                             >
                               {copiedBookId === book.id ? <Check size={17} /> : <Copy size={17} />}
+                            </button>
+                            <button
+                              className="icon-button catalog-action"
+                              onClick={() => setQrBook(book)}
+                              aria-label={`Generar código QR para ${book.title}`}
+                              title="Ver código QR"
+                            >
+                              <QrCode size={17} />
                             </button>
                             <button
                               className="icon-button catalog-action"
@@ -612,6 +855,7 @@ function AdminPage() {
                       file={file}
                       fileName={file.name}
                       bookTitle={bookTitle}
+                      coverImage={coverPreview || getCoverUrl(editingBook?.cover_path)}
                       fileSize={file.size}
                       shareUrl={shareUrl}
                       saving={saving}
@@ -632,9 +876,22 @@ function AdminPage() {
                         </div>
                         <div className="share-link-row">
                           <a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
-                          <button className="icon-button" onClick={copyShareLink} aria-label="Copiar enlace">
-                            {copied ? <Check size={18} /> : <Copy size={18} />}
-                          </button>
+                          <div className="share-actions">
+                            <button className="icon-button" onClick={copyShareLink} aria-label="Copiar enlace" title="Copiar enlace">
+                              {copied ? <Check size={18} /> : <Copy size={18} />}
+                            </button>
+                            <button
+                              className="secondary-button qr-button"
+                              onClick={() => setQrBook({
+                                id: '',
+                                slug: decodeURIComponent(new URL(shareUrl).pathname.split('/').pop()),
+                                title: bookTitle,
+                              })}
+                            >
+                              <QrCode size={16} />
+                              Ver QR
+                            </button>
+                          </div>
                         </div>
                       </section>
                     )}
@@ -723,6 +980,60 @@ function AdminPage() {
                   </div>
                   {error && <p className="error-message upload-error" role="alert">{error}</p>}
                 </form>
+              </div>
+            )}
+            {qrBook && (
+              <div
+                className="modal-backdrop"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setQrBook(null)
+                }}
+              >
+                <section
+                  className="qr-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="qr-modal-title"
+                >
+                  <div className="catalog-heading">
+                    <div>
+                      <p className="eyebrow">ENLACE COMPARTIBLE</p>
+                      <h2 id="qr-modal-title">Código QR</h2>
+                    </div>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => setQrBook(null)}
+                      aria-label="Cerrar código QR"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <p className="qr-book-title">{qrBook.title}</p>
+                  <div className="qr-code-frame">
+                    <QRCodeSVG
+                      className="share-qr-code"
+                      value={createShareUrl(qrBook)}
+                      size={220}
+                      level="H"
+                      includeMargin
+                    />
+                  </div>
+                  <p className="qr-modal-copy">Escanea este código para abrir el libro.</p>
+                  <div className="metadata-form-actions">
+                    <button className="primary-button" type="button" onClick={copyQrLink}>
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? 'Enlace copiado' : 'Copiar enlace'}
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setQrBook(null)}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </section>
               </div>
             )}
           </>
