@@ -16,6 +16,8 @@ GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 const FLIPPING_TIME = 1500
+const PINNED_EDGE_PAGE_COUNT = 3
+const ACTIVE_PAGE_CACHE_RADIUS = 4
 
 function renderPage(pdf, pageNumber, width) {
   return pdf.getPage(pageNumber).then(async (page) => {
@@ -177,6 +179,47 @@ const PdfBook = forwardRef(function PdfBook(
     }
   }, [applyPageAsset, getPageAsset, pageWidth])
 
+  const pruneDistantPages = useCallback(() => {
+    if (!pdf || busyRef.current) return
+
+    for (const [key, assetPromise] of cacheRef.current) {
+      const [cachedPage] = key.split(':').map(Number)
+      const currentPage = pageIndexRef.current + 1
+      const isPinnedEdgePage = cachedPage <= PINNED_EDGE_PAGE_COUNT
+        || cachedPage > pdf.numPages - PINNED_EDGE_PAGE_COUNT
+
+      if (
+        isPinnedEdgePage
+        || Math.abs(cachedPage - currentPage) <= ACTIVE_PAGE_CACHE_RADIUS
+      ) continue
+
+      assetPromise.then((asset) => {
+        if (busyRef.current || cacheRef.current.get(key) !== assetPromise) return
+
+        const latestPage = pageIndexRef.current + 1
+        const isStillDistant = Math.abs(cachedPage - latestPage) > ACTIVE_PAGE_CACHE_RADIUS
+        const isStillOutsidePinnedEdges = cachedPage > PINNED_EDGE_PAGE_COUNT
+          && cachedPage <= pdf.numPages - PINNED_EDGE_PAGE_COUNT
+
+        if (!isStillDistant || !isStillOutsidePinnedEdges) return
+
+        cacheRef.current.delete(key)
+        const storedAsset = pageAssetsRef.current.get(cachedPage)
+        if (storedAsset?.url === asset.url) {
+          pageAssetsRef.current.delete(cachedPage)
+          const node = pageNodesRef.current[cachedPage - 1]
+          const image = node?.querySelector(`img[data-pdf-page="${cachedPage}"]`)
+          if (image?.src === asset.url) image.removeAttribute('src')
+        }
+        URL.revokeObjectURL(asset.url)
+      }, () => {
+        if (cacheRef.current.get(key) === assetPromise) {
+          cacheRef.current.delete(key)
+        }
+      })
+    }
+  }, [pdf])
+
   useEffect(() => {
     let active = true
     let loadingTask
@@ -286,32 +329,9 @@ const PdfBook = forwardRef(function PdfBook(
       : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
 
     preparePages(pdf, visiblePages)
-      .then(() => {
-        for (const [key, assetPromise] of cacheRef.current) {
-          const [cachedPage] = key.split(':').map(Number)
-          if (
-            cachedPage === 1
-            || cachedPage === document.numPages
-            || Math.abs(cachedPage - firstVisiblePage) <= 4
-          ) continue
-
-          cacheRef.current.delete(key)
-          assetPromise.then((asset) => {
-            const storedAsset = pageAssetsRef.current.get(cachedPage)
-            if (storedAsset?.url === asset.url) {
-              pageAssetsRef.current.delete(cachedPage)
-              const node = pageNodesRef.current[cachedPage - 1]
-              const image = node?.querySelector(
-                `img[data-pdf-page="${cachedPage}"]`,
-              )
-              if (image?.src === asset.url) image.removeAttribute('src')
-            }
-            URL.revokeObjectURL(asset.url)
-          }).catch(() => {})
-        }
-      })
+      .then(pruneDistantPages)
       .catch((renderError) => callbacksRef.current.onLoadError(renderError))
-  }, [pdf, preparePages])
+  }, [pdf, preparePages, pruneDistantPages])
 
   const alignBook = useCallback((pageIndex, orientation) => {
     setClosedPosition(getClosedPosition(pageIndex, pageCount, orientation))
