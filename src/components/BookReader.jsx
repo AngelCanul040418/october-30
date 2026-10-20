@@ -53,11 +53,7 @@ function BookReader({
   const [pageWidth, setPageWidth] = useState(640)
   const bookRef = useRef(null)
   const flipBookRef = useRef(null)
-  const canGoNext = pageCount > 1 && (
-    orientation === 'landscape'
-      ? pageNumber + 1 < pageCount
-      : pageNumber < pageCount
-  )
+  const canGoNext = pageCount > 1 && pageNumber < pageCount
 
   useEffect(() => {
     const element = bookRef.current
@@ -222,7 +218,7 @@ function BookReader({
         <div className="page-counter">
           <span className="current-page">
             {pageNumber.toString().padStart(2, '0')}
-            {orientation === 'landscape' && pageNumber < pageCount
+            {orientation === 'landscape' && pageNumber > 1 && pageNumber < pageCount
               ? `–${(pageNumber + 1).toString().padStart(2, '0')}`
               : ''}
           </span>
