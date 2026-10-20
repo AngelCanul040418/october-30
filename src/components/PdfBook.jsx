@@ -59,37 +59,25 @@ function renderPage(pdf, pageNumber, width) {
   })
 }
 
-const FlipPage = forwardRef(function FlipPage(
-  {
-    pageIndex,
-    pageNumber,
-    nodesRef,
-    assetsRef,
-  },
-  forwardedRef,
-) {
-  const setRef = useCallback((node) => {
-    if (node) {
-      nodesRef.current[pageIndex] = node
-      const image = node.querySelector(`img[data-pdf-page="${pageNumber}"]`)
-      const asset = assetsRef.current.get(pageNumber)
-      if (image && asset) image.src = asset.url
-    } else {
-      delete nodesRef.current[pageIndex]
-    }
-
-    if (typeof forwardedRef === 'function') forwardedRef(node)
-    else if (forwardedRef) forwardedRef.current = node
-  }, [assetsRef, forwardedRef, nodesRef, pageIndex, pageNumber])
-
+const FlipPage = forwardRef(function FlipPage({ pageNumber, asset }, forwardedRef) {
   return (
     <div
-      ref={setRef}
+      ref={forwardedRef}
       className="flipbook-page"
       data-page-number={pageNumber}
       data-density="soft"
     >
-      <img alt="" data-pdf-page={pageNumber} draggable="false" />
+      <img
+        alt=""
+        src={asset?.url || ''}
+        draggable="false"
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          display: asset?.url ? 'block' : 'none',
+        }}
+      />
     </div>
   )
 })
@@ -111,10 +99,9 @@ const PdfBook = forwardRef(function PdfBook(
   const [isReady, setIsReady] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [isTurning, setIsTurning] = useState(false)
+  const [pageAssets, setPageAssets] = useState({})
 
   const cacheRef = useRef(new Map())
-  const pageAssetsRef = useRef(new Map())
-  const pageNodesRef = useRef([])
   const bookRef = useRef(null)
   const flipInstanceRef = useRef(null)
   const pageIndexRef = useRef(0)
@@ -127,11 +114,10 @@ const PdfBook = forwardRef(function PdfBook(
   }, [onBusyChange, onLoadError, onLoadSuccess, onPageChange])
 
   const applyPageAsset = useCallback((pageNumber, asset) => {
-    pageAssetsRef.current.set(pageNumber, asset)
-    for (const node of pageNodesRef.current) {
-      const image = node?.querySelector(`img[data-pdf-page="${pageNumber}"]`)
-      if (image && image.src !== asset.url) image.src = asset.url
-    }
+    setPageAssets((previous) => ({
+      ...previous,
+      [pageNumber]: asset,
+    }))
   }, [])
 
   const getPageAsset = useCallback((document, pageNumber, width) => {
@@ -142,7 +128,9 @@ const PdfBook = forwardRef(function PdfBook(
     const assetPromise = renderPage(document, pageNumber, width)
     cacheRef.current.set(key, assetPromise)
     assetPromise.catch(() => {
-      if (cacheRef.current.get(key) === assetPromise) cacheRef.current.delete(key)
+      if (cacheRef.current.get(key) === assetPromise) {
+        cacheRef.current.delete(key)
+      }
     })
     return assetPromise
   }, [])
@@ -163,31 +151,9 @@ const PdfBook = forwardRef(function PdfBook(
     }
   }, [applyPageAsset, getPageAsset, pageWidth])
 
-  const pruneCache = useCallback((centerPage) => {
-    for (const [key, assetPromise] of cacheRef.current) {
-      const [cachedPage] = key.split(':').map(Number)
-      if (Math.abs(cachedPage - centerPage) <= 4) continue
-
-      cacheRef.current.delete(key)
-      assetPromise.then((asset) => {
-        const storedAsset = pageAssetsRef.current.get(cachedPage)
-        if (storedAsset?.url === asset.url) {
-          pageAssetsRef.current.delete(cachedPage)
-          for (const node of pageNodesRef.current) {
-            const image = node?.querySelector(`img[data-pdf-page="${cachedPage}"]`)
-            if (image && image.src === asset.url) image.removeAttribute('src')
-          }
-        }
-        URL.revokeObjectURL(asset.url)
-      }).catch(() => {})
-    }
-  }, [])
-
   useEffect(() => {
     let active = true
     let loadingTask
-    const assetCache = cacheRef.current
-    const pageAssets = pageAssetsRef.current
 
     async function loadPdf() {
       try {
@@ -206,11 +172,11 @@ const PdfBook = forwardRef(function PdfBook(
           return
         }
 
-        const count = loadedDocument.numPages
         setPdf(loadedDocument)
-        setPageCount(count)
+        setPageCount(loadedDocument.numPages)
+        setPageAssets({})
         callbacksRef.current.onLoadSuccess({
-          numPages: count,
+          numPages: loadedDocument.numPages,
           pageRatio: firstViewport.height / firstViewport.width,
         })
       } catch (documentError) {
@@ -222,21 +188,21 @@ const PdfBook = forwardRef(function PdfBook(
 
     setPdf(null)
     setPageCount(0)
+    setPageAssets({})
     setIsReady(false)
     setLoadError('')
-    busyRef.current = false
     pageIndexRef.current = 0
     orientationRef.current = 'portrait'
+    busyRef.current = false
     loadPdf()
 
     return () => {
       active = false
       if (loadingTask) loadingTask.destroy().catch(() => {})
-      for (const assetPromise of assetCache.values()) {
+      for (const assetPromise of cacheRef.current.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})
       }
-      assetCache.clear()
-      pageAssets.clear()
+      cacheRef.current.clear()
     }
   }, [file])
 
@@ -268,14 +234,12 @@ const PdfBook = forwardRef(function PdfBook(
       return (
         <FlipPage
           key={pageNumber}
-          pageIndex={index}
           pageNumber={pageNumber}
-          nodesRef={pageNodesRef}
-          assetsRef={pageAssetsRef}
+          asset={pageAssets[pageNumber]}
         />
       )
     })
-  }, [isReady, pageCount])
+  }, [isReady, pageCount, pageAssets])
 
   const updatePage = useCallback((pageIndex, orientation = orientationRef.current) => {
     pageIndexRef.current = pageIndex
@@ -290,16 +254,34 @@ const PdfBook = forwardRef(function PdfBook(
       : [firstVisiblePage, firstVisiblePage + 1, firstVisiblePage - 1]
 
     preparePages(pdf, visiblePages)
-      .then(() => pruneCache(firstVisiblePage))
+      .then(() => {
+        for (const [key, assetPromise] of cacheRef.current) {
+          const [cachedPage] = key.split(':').map(Number)
+          if (Math.abs(cachedPage - firstVisiblePage) <= 4) continue
+
+          cacheRef.current.delete(key)
+          assetPromise.then((asset) => {
+            const storedAsset = pageAssets[ cachedPage ]
+            if (storedAsset?.url === asset.url) {
+              setPageAssets((previous) => {
+                const next = { ...previous }
+                delete next[cachedPage]
+                return next
+              })
+            }
+            URL.revokeObjectURL(asset.url)
+          }).catch(() => {})
+        }
+      })
       .catch((renderError) => callbacksRef.current.onLoadError(renderError))
-  }, [pdf, preparePages, pruneCache])
+  }, [pdf, preparePages, pageAssets])
 
   const handleInit = useCallback((event) => {
     if (!bookRef.current) return
     const flip = bookRef.current.pageFlip()
     if (!flip) return
-
     flipInstanceRef.current = flip
+
     const initialIndex = 0
     if (flip.getCurrentPageIndex() !== initialIndex) flip.turnToPage(initialIndex)
     updatePage(initialIndex, event.data.mode)
