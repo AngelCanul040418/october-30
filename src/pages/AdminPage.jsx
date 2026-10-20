@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   Copy,
+  Download,
   FileText,
   Pencil,
   Plus,
@@ -70,6 +71,51 @@ function getCoverExtension(file) {
   return 'jpg'
 }
 
+async function downloadQrPng(svgElement, filename) {
+  const svg = svgElement.cloneNode(true)
+  const imageSize = 1024
+  svg.setAttribute('width', imageSize)
+  svg.setAttribute('height', imageSize)
+  svg.style.background = 'transparent'
+
+  const svgBlob = new Blob(
+    [new XMLSerializer().serializeToString(svg)],
+    { type: 'image/svg+xml;charset=utf-8' },
+  )
+  const svgUrl = URL.createObjectURL(svgBlob)
+
+  try {
+    const image = new Image()
+    image.src = svgUrl
+    await image.decode()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = imageSize
+    canvas.height = imageSize
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('El navegador no permite crear la imagen.')
+    context.drawImage(image, 0, 0, imageSize, imageSize)
+
+    const pngBlob = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('No se pudo generar el archivo PNG.'))
+      }, 'image/png')
+    })
+    const pngUrl = URL.createObjectURL(pngBlob)
+    const anchor = document.createElement('a')
+    anchor.href = pngUrl
+    anchor.download = filename
+    anchor.hidden = true
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(pngUrl), 1000)
+  } finally {
+    URL.revokeObjectURL(svgUrl)
+  }
+}
+
 function AdminPage() {
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
@@ -95,9 +141,17 @@ function AdminPage() {
   const [copied, setCopied] = useState(false)
   const [copiedBookId, setCopiedBookId] = useState('')
   const [qrBook, setQrBook] = useState(null)
+  const [downloadingQr, setDownloadingQr] = useState(false)
+  const [qrDownloadError, setQrDownloadError] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const uploadRef = useRef(null)
   const coverUploadRef = useRef(null)
+  const qrCodeRef = useRef(null)
+
+  function openQr(book) {
+    setQrDownloadError('')
+    setQrBook(book)
+  }
 
   useEffect(() => () => {
     if (coverPreview) URL.revokeObjectURL(coverPreview)
@@ -554,6 +608,23 @@ function AdminPage() {
     }
   }
 
+  async function handleDownloadQr() {
+    if (!qrBook || !qrCodeRef.current) {
+      setQrDownloadError('No se encontró el código QR para descargar.')
+      return
+    }
+
+    setDownloadingQr(true)
+    setQrDownloadError('')
+    try {
+      await downloadQrPng(qrCodeRef.current, `${slugifyTitle(qrBook.title)}-qr.png`)
+    } catch (downloadError) {
+      setQrDownloadError(`No se pudo descargar el código QR: ${downloadError.message}`)
+    } finally {
+      setDownloadingQr(false)
+    }
+  }
+
   async function copyBookLink(book) {
     try {
       await navigator.clipboard.writeText(createShareUrl(book))
@@ -798,7 +869,7 @@ function AdminPage() {
                             </button>
                             <button
                               className="icon-button catalog-action"
-                              onClick={() => setQrBook(book)}
+                              onClick={() => openQr(book)}
                               aria-label={`Generar código QR para ${book.title}`}
                               title="Ver código QR"
                             >
@@ -882,7 +953,7 @@ function AdminPage() {
                             </button>
                             <button
                               className="secondary-button qr-button"
-                              onClick={() => setQrBook({
+                              onClick={() => openQr({
                                 id: '',
                                 slug: decodeURIComponent(new URL(shareUrl).pathname.split('/').pop()),
                                 title: bookTitle,
@@ -1012,18 +1083,32 @@ function AdminPage() {
                   <p className="qr-book-title">{qrBook.title}</p>
                   <div className="qr-code-frame">
                     <QRCodeSVG
+                      ref={qrCodeRef}
                       className="share-qr-code"
                       value={createShareUrl(qrBook)}
                       size={220}
                       level="H"
-                      includeMargin
+                      marginSize={4}
+                      bgColor="transparent"
                     />
                   </div>
                   <p className="qr-modal-copy">Escanea este código para abrir el libro.</p>
+                  {qrDownloadError && (
+                    <p className="error-message upload-error" role="alert">{qrDownloadError}</p>
+                  )}
                   <div className="metadata-form-actions">
                     <button className="primary-button" type="button" onClick={copyQrLink}>
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       {copied ? 'Enlace copiado' : 'Copiar enlace'}
+                    </button>
+                    <button
+                      className="secondary-button qr-button"
+                      type="button"
+                      onClick={handleDownloadQr}
+                      disabled={downloadingQr}
+                    >
+                      <Download size={16} />
+                      {downloadingQr ? 'Preparando PNG…' : 'Descargar PNG'}
                     </button>
                     <button
                       className="secondary-button"

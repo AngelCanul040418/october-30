@@ -928,6 +928,7 @@
 
 .qr-modal .metadata-form-actions {
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .qr-modal .primary-button {
