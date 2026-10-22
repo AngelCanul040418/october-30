@@ -44,18 +44,18 @@ npm run dev
    ```
 
    La función usa las variables `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` del entorno de Supabase; la clave de servicio nunca debe agregarse a Vite ni al frontend.
-5. En Supabase Auth, habilita el proveedor Email, configura SMTP para que se entreguen las invitaciones y agrega las URL de redirección de Vercel y `http://localhost:5173/**` a la lista permitida. En Authentication > Sign In / Providers, desactiva el registro público de cuentas. Las cuentas se crean desde `/users`, solo por un super administrador, y reciben un enlace para establecer su contraseña en `/set-password`.
+5. En Supabase Auth, habilita el proveedor Email y permite el registro público para que los lectores puedan crear su cuenta desde un enlace compartido. Añade `https://tu-dominio-de-vercel.app/**` y `http://localhost:5173/**` a la lista de Redirect URLs para que, tras confirmar su correo, vuelvan al libro que estaban abriendo. Los nuevos registros reciben automáticamente el rol `reader`; los autores y super administradores se crean mediante invitación desde `/users`.
 6. Ejecuta `npm run dev` e inicia sesión con la cuenta de super administrador.
 
 ## Roles y acceso
 
 - `super_admin`: administra todos los libros y es la única persona que puede invitar cuentas, asignar roles y activar o desactivar usuarios. El rol `admin` anterior se migra a `super_admin`.
 - `author`: publica, edita y elimina únicamente sus propios libros; no puede acceder a `/users`.
-- `reader`: inicia sesión en `/library`, guarda libros compartidos y lee su biblioteca. No puede publicar libros.
+- `reader`: puede crear su propia cuenta desde un enlace compartido, guardar libros y leer su biblioteca. No puede publicar libros.
 
 El cliente protege las vistas por rol, la función `manage-users` exige una sesión superadministradora y las políticas RLS de Supabase aplican los permisos reales sobre las tablas y Storage. Desactivar una cuenta bloquea el inicio de sesión y las nuevas solicitudes a la base y Storage; no elimina sus libros ni su perfil. Las URLs firmadas que ya se hubieran emitido siguen funcionando hasta vencer (actualmente, en un máximo de 24 horas). Los PDF y las portadas permanecen en el bucket privado `books`.
 
-El propietario de un enlace compartido puede invitar a un lector a guardar ese libro en su biblioteca. Si más adelante se requiere que solo destinatarios específicos puedan reclamar un enlace, habrá que agregar invitaciones vinculadas a cada libro.
+El enlace compartido funciona como acceso para reclamar el libro: el lector inicia sesión o crea una cuenta de lector desde esa página, y después puede guardar el libro en su biblioteca. La confirmación de cuenta usa el servicio de correo configurado en Supabase Auth. El SMTP predeterminado puede servir para una prueba pequeña, pero tiene límites de entrega; configura un SMTP propio si las confirmaciones deben llegar de forma fiable a cualquier persona. Si más adelante se requiere que solo destinatarios específicos puedan reclamar un enlace, habrá que agregar invitaciones vinculadas a cada libro.
 
 ## Producción
 
