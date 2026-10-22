@@ -46,10 +46,13 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
         if (signInError) throw signInError
       }
     } catch (authError) {
+      const message = authError.message === 'Signups not allowed for this instance'
+        ? 'El registro de lectores está desactivado en Supabase. El administrador debe activar “Allow new users to sign up” en Authentication > Providers > Email.'
+        : authError.message
       setError(
         mode === 'sign-up'
-          ? `No se pudo crear la cuenta: ${authError.message}`
-          : `No se pudo iniciar sesión: ${authError.message}`,
+          ? `No se pudo crear la cuenta: ${message}`
+          : `No se pudo iniciar sesión: ${message}`,
       )
     } finally {
       setSubmitting(false)

@@ -875,6 +875,12 @@ function AdminPage({ audience = 'super_admin' }) {
         onSignOut={user ? signOut : undefined}
       />
       <main className="main-content">
+        {user && audience === 'super_admin' && (
+          <a className="admin-dashboard-backlink" href="/">
+            <ArrowLeft size={16} />
+            Volver al panel del super administrador
+          </a>
+        )}
         {(!user || activeView === 'create') && (
           <section className="intro">
             <p className="eyebrow"><span /> {audience === 'author' ? 'PANEL DE AUTOR' : 'ADMINISTRACIÓN'}</p>

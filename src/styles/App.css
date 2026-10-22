@@ -444,6 +444,21 @@
   gap: 9px;
 }
 
+.admin-dashboard-backlink {
+  margin: -20px 0 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #58705d;
+  font-size: 12px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.admin-dashboard-backlink:hover {
+  color: #294d3d;
+}
+
 .dashboard-heading-actions .secondary-button,
 .dashboard-heading-actions .primary-button {
   min-height: 39px;
