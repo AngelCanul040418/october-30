@@ -458,6 +458,141 @@
   width: min(100% - 48px, 960px);
 }
 
+.super-admin-main {
+  width: min(100% - 48px, 900px);
+}
+
+.super-admin-welcome {
+  margin: 33px auto 28px;
+  text-align: center;
+}
+
+.super-admin-welcome .reader-auth-icon {
+  margin: 0 auto 13px;
+}
+
+.super-admin-welcome .eyebrow {
+  justify-content: center;
+  margin-bottom: 9px;
+}
+
+.super-admin-welcome h1 {
+  margin: 0;
+  color: #222c27;
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.5vw, 46px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+}
+
+.super-admin-welcome > p:last-child {
+  max-width: 500px;
+  margin: 10px auto 0;
+  color: #797b75;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.super-admin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.super-admin-stat {
+  min-height: 112px;
+  padding: 17px 18px;
+  box-sizing: border-box;
+  border: 1px solid #e9e7e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.super-admin-stat svg {
+  color: #63806a;
+}
+
+.super-admin-stat span {
+  display: block;
+  margin-top: 13px;
+  color: #797f77;
+  font-size: 11px;
+}
+
+.super-admin-stat strong {
+  display: block;
+  margin-top: 3px;
+  color: #27332c;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 550;
+}
+
+.super-admin-actions {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.super-admin-action-card {
+  min-height: 105px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #e9e7e1;
+  border-radius: 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.88);
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.super-admin-action-card:last-child {
+  grid-column: 1 / -1;
+}
+
+.super-admin-action-card:hover {
+  border-color: #c9d6ca;
+  box-shadow: 0 8px 25px rgba(49, 70, 54, 0.07);
+  transform: translateY(-2px);
+}
+
+.super-admin-action-icon {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #51715a;
+  background: #eef5ef;
+}
+
+.super-admin-action-card strong,
+.super-admin-action-card small {
+  display: block;
+}
+
+.super-admin-action-card strong {
+  color: #27332c;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.super-admin-action-card small {
+  margin-top: 5px;
+  color: #85877f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.super-admin-action-arrow {
+  color: #78917c;
+  font-size: 22px;
+}
+
 .user-management-backlink {
   display: inline-flex;
   align-items: center;
@@ -2235,6 +2370,22 @@
 
   .user-management-main {
     width: min(calc(100% - 32px), 640px);
+  }
+
+  .super-admin-main {
+    width: min(calc(100% - 32px), 640px);
+  }
+
+  .super-admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .super-admin-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .super-admin-action-card:last-child {
+    grid-column: auto;
   }
 
   .user-invite-fields {

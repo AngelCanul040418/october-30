@@ -3,6 +3,7 @@ import AdminPage from './pages/AdminPage.jsx'
 import ReaderLibraryPage from './pages/ReaderLibraryPage.jsx'
 import SetPasswordPage from './pages/SetPasswordPage.jsx'
 import SharedBookPage from './pages/SharedBookPage.jsx'
+import SuperAdminPage from './pages/SuperAdminPage.jsx'
 import UserManagementPage from './pages/UserManagementPage.jsx'
 import './styles/App.css'
 
@@ -21,8 +22,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AdminPage audience="super_admin" />} />
+        <Route path="/" element={<SuperAdminPage />} />
         <Route path="/author" element={<AdminPage audience="author" />} />
+        <Route path="/books" element={<AdminPage audience="super_admin" />} />
         <Route path="/users" element={<UserManagementPage />} />
         <Route path="/book/:bookSlug" element={<SharedBookPage />} />
         <Route path="/library" element={<ReaderLibraryPage />} />
