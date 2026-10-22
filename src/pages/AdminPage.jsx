@@ -27,6 +27,14 @@ const emptyMetadata = { title: '', subtitle: '', description: '', author: '' }
 const bookFields = 'id,title,subtitle,description,author,file_path,slug,original_filename,cover_path,created_at,updated_at'
 const MAX_COVER_SIZE = 10 * 1024 * 1024
 
+async function showAdminAlert(options) {
+  const [{ default: Swal }] = await Promise.all([
+    import('sweetalert2'),
+    import('sweetalert2/dist/sweetalert2.min.css'),
+  ])
+  return Swal.fire(options)
+}
+
 function createShareUrl(book) {
   return `${window.location.origin}/book/${encodeURIComponent(book.slug || book.id)}`
 }
@@ -131,7 +139,6 @@ function AdminPage() {
   const [author, setAuthor] = useState('')
   const [shareUrl, setShareUrl] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [books, setBooks] = useState([])
   const [loadingBooks, setLoadingBooks] = useState(false)
@@ -357,12 +364,12 @@ function AdminPage() {
     if (!supabase || !user || !file || !bookTitle.trim() || saving || shareUrl) return
 
     setError('')
-    setSuccess('')
     setSaving(true)
     const bookId = crypto.randomUUID()
     const filePath = `${bookId}.pdf`
     const bookSlug = createUniqueSlug(bookTitle, books)
     const uploadedPaths = []
+    let savedBook = null
     try {
       const { error: uploadError } = await supabase.storage
         .from(BOOKS_BUCKET)
@@ -406,7 +413,7 @@ function AdminPage() {
 
       if (metadataError) throw metadataError
 
-      const savedBook = {
+      savedBook = {
         id: bookId,
         slug: bookSlug,
         title: bookTitle.trim(),
@@ -414,9 +421,17 @@ function AdminPage() {
         description: description.trim(),
         author: author.trim(),
       }
-      setShareUrl(createShareUrl(savedBook))
       await loadBooks()
-      setSuccess(`“${savedBook.title}” se guardó correctamente y ya puedes compartir su enlace.`)
+      setFile(null)
+      setCoverFile(null)
+      setCoverPreview('')
+      setCoverRemoved(false)
+      setBookTitle('')
+      setSubtitle('')
+      setDescription('')
+      setAuthor('')
+      setShareUrl('')
+      setActiveView('dashboard')
     } catch (uploadError) {
       let message = uploadError.message
       if (uploadedPaths.length) {
@@ -429,6 +444,20 @@ function AdminPage() {
     } finally {
       setSaving(false)
     }
+
+    if (savedBook) {
+      try {
+        await showAdminAlert({
+          icon: 'success',
+          title: 'Libro guardado',
+          text: `“${savedBook.title}” se guardó correctamente y ya puedes compartir su enlace.`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#294d3d',
+        })
+      } catch (alertError) {
+        setError(`El libro se guardó, pero no se pudo mostrar la confirmación: ${alertError.message}`)
+      }
+    }
   }
 
   function startEditing(book) {
@@ -438,7 +467,6 @@ function AdminPage() {
     setDescription(book.description)
     setAuthor(book.author)
     setError('')
-    setSuccess('')
     setFile(null)
     setCoverFile(null)
     setCoverPreview('')
@@ -459,7 +487,6 @@ function AdminPage() {
     setShareUrl('')
     setEditingBook(null)
     setError('')
-    setSuccess('')
     setActiveView('create')
   }
 
@@ -475,7 +502,6 @@ function AdminPage() {
     setShareUrl('')
     setEditingBook(null)
     setError('')
-    setSuccess('')
     setActiveView('dashboard')
   }
 
@@ -484,11 +510,11 @@ function AdminPage() {
     if (!supabase || !user || !editingBook || !bookTitle.trim() || saving) return
 
     setError('')
-    setSuccess('')
     setSaving(true)
     let uploadedCoverPath = ''
     let coverMetadataSaved = false
     let cleanupWarning = ''
+    let updateSucceeded = false
     try {
       let coverPath = coverRemoved ? null : editingBook.cover_path
       if (coverFile) {
@@ -541,8 +567,7 @@ function AdminPage() {
       setSubtitle('')
       setDescription('')
       setAuthor('')
-      setSuccess(`Los cambios de “${editingBook.title}” se guardaron correctamente.`)
-      if (cleanupWarning) setError(cleanupWarning)
+      updateSucceeded = true
     } catch (updateError) {
       let message = updateError.message
       if (uploadedCoverPath && !coverMetadataSaved) {
@@ -557,15 +582,49 @@ function AdminPage() {
     } finally {
       setSaving(false)
     }
+
+    if (updateSucceeded) {
+      try {
+        await showAdminAlert({
+          icon: cleanupWarning ? 'warning' : 'success',
+          title: cleanupWarning ? 'Cambios guardados con aviso' : 'Libro actualizado',
+          text: cleanupWarning
+            ? `${cleanupWarning}.`
+            : `Los cambios de “${editingBook.title}” se guardaron correctamente.`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#294d3d',
+        })
+      } catch (alertError) {
+        setError(`Los cambios se guardaron, pero no se pudo mostrar la confirmación: ${alertError.message}`)
+      }
+    }
   }
 
   async function deleteBook(book) {
     if (!supabase || !user || deletingBookId) return
-    if (!window.confirm(`¿Eliminar “${book.title}” y su PDF? El enlace dejará de funcionar.`)) return
+    let confirmation
+    try {
+      confirmation = await showAdminAlert({
+        icon: 'warning',
+        title: '¿Eliminar este libro?',
+        text: `Se eliminarán “${book.title}” y su PDF. El enlace dejará de funcionar.`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#b42318',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+        focusCancel: true,
+      })
+    } catch (alertError) {
+      setError(`No se pudo mostrar la confirmación de eliminación: ${alertError.message}`)
+      return
+    }
+    if (!confirmation.isConfirmed) return
 
     setError('')
-    setSuccess('')
     setDeletingBookId(book.id)
+    let deleted = false
     try {
       const pathsToRemove = [book.file_path, book.cover_path].filter(Boolean)
       const { error: storageError } = await supabase.storage.from(BOOKS_BUCKET).remove(pathsToRemove)
@@ -578,12 +637,26 @@ function AdminPage() {
 
       setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== book.id))
       if (editingBook?.id === book.id) setEditingBook(null)
-      setSuccess(`“${book.title}” se eliminó correctamente.`)
+      deleted = true
     } catch (deleteError) {
       setError(`No se pudo completar la eliminación: ${deleteError.message}`)
       await loadBooks()
     } finally {
       setDeletingBookId('')
+    }
+
+    if (deleted) {
+      try {
+        await showAdminAlert({
+          icon: 'success',
+          title: 'Libro eliminado',
+          text: `“${book.title}” se eliminó correctamente.`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#294d3d',
+        })
+      } catch (alertError) {
+        setError(`El libro se eliminó, pero no se pudo mostrar la confirmación: ${alertError.message}`)
+      }
     }
   }
 
@@ -789,12 +862,6 @@ function AdminPage() {
           </section>
         ) : (
           <>
-            {success && (
-              <p className="success-message" role="status">
-                <Check size={17} />
-                <span>{success}</span>
-              </p>
-            )}
             {activeView === 'dashboard' ? (
               <>
                 <div className="dashboard-heading">
