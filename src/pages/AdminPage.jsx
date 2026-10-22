@@ -67,12 +67,6 @@ function createUniqueSlug(title, books, excludedId = '') {
   return slug
 }
 
-function getCoverUrl(coverPath) {
-  return coverPath && supabase
-    ? supabase.storage.from(BOOKS_BUCKET).getPublicUrl(coverPath).data.publicUrl
-    : ''
-}
-
 function getCoverExtension(file) {
   if (file.type === 'image/png') return 'png'
   if (file.type === 'image/webp') return 'webp'
@@ -127,6 +121,7 @@ async function downloadQrPng(svgElement, filename) {
 function AdminPage() {
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
+  const [roleCheck, setRoleCheck] = useState(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [file, setFile] = useState(null)
@@ -154,6 +149,9 @@ function AdminPage() {
   const uploadRef = useRef(null)
   const coverUploadRef = useRef(null)
   const qrCodeRef = useRef(null)
+  const currentRoleCheck = roleCheck?.userId === user?.id ? roleCheck : null
+  const checkingRole = Boolean(user && !currentRoleCheck)
+  const isAdmin = currentRoleCheck?.role === 'admin'
 
   function openQr(book) {
     setQrDownloadError('')
@@ -203,7 +201,7 @@ function AdminPage() {
     if (metadataResult.error) throw metadataResult.error
 
     const metadataById = new Map((metadataResult.data ?? []).map((book) => [book.id, book]))
-    return storageFiles
+    const books = storageFiles
       .filter((entry) => entry.name.endsWith('.pdf'))
       .map((entry) => {
         const id = entry.name.slice(0, -4)
@@ -222,6 +220,14 @@ function AdminPage() {
       })
       .filter(Boolean)
       .sort((first, second) => new Date(second.created_at || 0) - new Date(first.created_at || 0))
+    return Promise.all(books.map(async (book) => {
+      if (!book.cover_path) return book
+      const { data: signedCover, error: coverError } = await supabase.storage
+        .from(BOOKS_BUCKET)
+        .createSignedUrl(book.cover_path, 86400)
+      if (coverError) throw coverError
+      return { ...book, cover_url: signedCover.signedUrl }
+    }))
   }, [])
 
   const loadBooks = useCallback(async () => {
@@ -245,6 +251,9 @@ function AdminPage() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (isMounted) {
         setUser(session?.user ?? null)
+        if (!session?.user) {
+          setRoleCheck(null)
+        }
         setCheckingSession(false)
       }
     })
@@ -263,11 +272,48 @@ function AdminPage() {
   }, [])
 
   useEffect(() => {
-    if (!user) return undefined
+    if (!supabase || !user) return undefined
 
     let active = true
-    fetchBooks()
+    supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data, error: profileError }) => {
+        if (!active) return
+        if (profileError) {
+          setRoleCheck({ userId: user.id, role: 'reader' })
+          setError(`No se pudo comprobar el rol de la cuenta: ${profileError.message}`)
+          return
+        }
+        setRoleCheck({ userId: user.id, role: data?.role || 'reader' })
+        if (data?.role !== 'admin') setActiveView('dashboard')
+      })
+      .catch((profileError) => {
+        if (active) {
+          setRoleCheck({ userId: user.id, role: 'reader' })
+          setError(`No se pudo comprobar el rol de la cuenta: ${profileError.message}`)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !isAdmin) return undefined
+
+    let active = true
+    Promise.resolve()
+      .then(() => {
+        if (!active) return null
+        setLoadingBooks(true)
+        return fetchBooks()
+      })
       .then((loadedBooks) => {
+        if (!active || !loadedBooks) return
         if (active) setBooks(loadedBooks)
         if (active) setError('')
       })
@@ -281,7 +327,7 @@ function AdminPage() {
     return () => {
       active = false
     }
-  }, [fetchBooks, user])
+  }, [fetchBooks, isAdmin, user])
 
   async function signIn(event) {
     event.preventDefault()
@@ -297,6 +343,7 @@ function AdminPage() {
     const { error: signOutError } = await supabase.auth.signOut()
     if (signOutError) setError(`No se pudo cerrar sesión: ${signOutError.message}`)
     else {
+      setRoleCheck(null)
       setFile(null)
       setCoverFile(null)
       setCoverPreview('')
@@ -760,9 +807,9 @@ function AdminPage() {
           <span>Portada</span>
           <div className="cover-picker">
             <div className="cover-preview">
-              {(coverPreview || (!coverRemoved && getCoverUrl(editingBook?.cover_path))) ? (
+              {(coverPreview || (!coverRemoved && editingBook?.cover_url)) ? (
                 <img
-                  src={coverPreview || getCoverUrl(editingBook?.cover_path)}
+                  src={coverPreview || editingBook?.cover_url}
                   alt="Vista previa de la portada"
                 />
               ) : (
@@ -830,7 +877,7 @@ function AdminPage() {
             Faltan las variables <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>.
             Configúralas en el archivo local <code>.env.local</code> y en Vercel.
           </div>
-        ) : checkingSession ? (
+        ) : checkingSession || checkingRole ? (
           <div className="page-loading session-loading"><span className="spinner" /> Comprobando acceso...</div>
         ) : !user ? (
           <section className="login-card">
@@ -859,6 +906,13 @@ function AdminPage() {
               <button className="primary-button" type="submit">Iniciar sesión</button>
             </form>
             {error && <p className="error-message" role="alert">{error}</p>}
+          </section>
+        ) : !isAdmin ? (
+          <section className="login-card">
+            <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
+            <h2>Esta cuenta no administra libros</h2>
+            <p className="upload-description">Puedes acceder a tu biblioteca de lector y a los libros que hayas guardado.</p>
+            <a className="primary-button" href="/library">Ir a mi biblioteca</a>
           </section>
         ) : (
           <>
@@ -904,8 +958,8 @@ function AdminPage() {
                         <li className="book-list-item" key={book.id}>
                           <div className="book-list-info">
                             <span className="book-list-icon">
-                              {book.cover_path
-                                ? <img src={getCoverUrl(book.cover_path)} alt="" />
+                              {book.cover_url
+                                ? <img src={book.cover_url} alt="" />
                                 : <BookOpen size={17} />}
                             </span>
                             <div className="book-list-copy">
@@ -993,7 +1047,7 @@ function AdminPage() {
                       file={file}
                       fileName={file.name}
                       bookTitle={bookTitle}
-                      coverImage={coverPreview || getCoverUrl(editingBook?.cover_path)}
+                      coverImage={coverPreview || editingBook?.cover_url || ''}
                       fileSize={file.size}
                       shareUrl={shareUrl}
                       saving={saving}

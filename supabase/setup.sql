@@ -8,7 +8,7 @@ insert into storage.buckets (
 values (
   'books',
   'books',
-  true,
+  false,
   52428800,
   array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 )
@@ -23,33 +23,6 @@ drop policy if exists "folio_books_authenticated_insert" on storage.objects;
 drop policy if exists "folio_books_owner_insert" on storage.objects;
 drop policy if exists "folio_books_owner_select" on storage.objects;
 drop policy if exists "folio_books_owner_delete" on storage.objects;
-
-create policy "folio_books_owner_insert"
-on storage.objects
-for insert
-to authenticated
-with check (
-  bucket_id = 'books'
-  and owner_id = (select auth.uid()::text)
-);
-
-create policy "folio_books_owner_select"
-on storage.objects
-for select
-to authenticated
-using (
-  bucket_id = 'books'
-  and owner_id = (select auth.uid()::text)
-);
-
-create policy "folio_books_owner_delete"
-on storage.objects
-for delete
-to authenticated
-using (
-  bucket_id = 'books'
-  and owner_id = (select auth.uid()::text)
-);
 
 create table if not exists public.books (
   id uuid primary key default gen_random_uuid(),
@@ -136,7 +109,105 @@ alter table public.books
 
 create unique index if not exists books_slug_key on public.books (slug);
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'reader' check (role in ('admin', 'reader')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.user_books (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  book_id uuid not null references public.books(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  primary key (user_id, book_id)
+);
+
+create index if not exists user_books_book_id_idx on public.user_books (book_id);
+
+revoke all on public.user_profiles, public.user_books from public, anon, authenticated;
+grant select on public.user_profiles to authenticated;
+grant select, delete on public.user_books to authenticated;
+
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.user_profiles (user_id, role)
+  values (new.id, 'reader')
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_profile on auth.users;
+create trigger on_auth_user_created_profile
+after insert on auth.users
+for each row execute procedure public.handle_new_auth_user();
+
+insert into public.user_profiles (user_id, role)
+select
+  auth_user.id,
+  case
+    when exists (select 1 from public.books where owner_id = auth_user.id) then 'admin'
+    else 'reader'
+  end
+from auth.users as auth_user
+on conflict (user_id) do update
+set role = 'admin'
+where exists (
+  select 1
+  from public.books
+  where owner_id = excluded.user_id
+);
+
+alter table public.user_profiles enable row level security;
+alter table public.user_books enable row level security;
+
+drop policy if exists "user_profiles_select_self" on public.user_profiles;
+create policy "user_profiles_select_self"
+on public.user_profiles
+for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "user_books_select_self" on public.user_books;
+create policy "user_books_select_self"
+on public.user_books
+for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "user_books_delete_self" on public.user_books;
+create policy "user_books_delete_self"
+on public.user_books
+for delete
+to authenticated
+using (user_id = (select auth.uid()));
+
+create or replace function public.is_library_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_profiles
+    where user_id = (select auth.uid())
+      and role = 'admin'
+  );
+$$;
+
+revoke all on function public.is_library_admin() from public, anon;
+grant execute on function public.is_library_admin() to authenticated;
+
 alter table public.books enable row level security;
+revoke all on public.books from public, anon;
+grant select, insert, update, delete on public.books to authenticated;
 
 drop policy if exists "folio_books_owner_select" on public.books;
 drop policy if exists "folio_books_owner_insert" on public.books;
@@ -147,50 +218,100 @@ create policy "folio_books_owner_select"
 on public.books
 for select
 to authenticated
-using (owner_id = (select auth.uid()));
+using (
+  public.is_library_admin()
+  or owner_id = (select auth.uid())
+  or exists (
+    select 1
+    from public.user_books
+    where user_books.book_id = books.id
+      and user_books.user_id = (select auth.uid())
+  )
+);
 
 create policy "folio_books_owner_insert"
 on public.books
 for insert
 to authenticated
-with check (owner_id = (select auth.uid()));
+with check (
+  owner_id = (select auth.uid())
+  and public.is_library_admin()
+);
 
 create policy "folio_books_owner_update"
 on public.books
 for update
 to authenticated
-using (owner_id = (select auth.uid()))
-with check (owner_id = (select auth.uid()));
+using (owner_id = (select auth.uid()) and public.is_library_admin())
+with check (owner_id = (select auth.uid()) and public.is_library_admin());
 
 create policy "folio_books_owner_delete"
 on public.books
 for delete
 to authenticated
-using (owner_id = (select auth.uid()));
+using (owner_id = (select auth.uid()) and public.is_library_admin());
 
+drop policy if exists "folio_books_owner_insert" on storage.objects;
+drop policy if exists "folio_books_owner_select" on storage.objects;
+drop policy if exists "folio_books_owner_delete" on storage.objects;
+drop policy if exists "books_storage_admin_insert" on storage.objects;
+drop policy if exists "books_storage_authorized_select" on storage.objects;
+drop policy if exists "books_storage_admin_delete" on storage.objects;
+
+create policy "books_storage_admin_insert"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'books'
+  and owner_id = (select auth.uid()::text)
+  and public.is_library_admin()
+);
+
+create policy "books_storage_authorized_select"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'books'
+  and (
+    public.is_library_admin()
+    or exists (
+      select 1
+      from public.books
+      where (
+        books.owner_id = (select auth.uid())
+        or exists (
+          select 1
+          from public.user_books
+          where user_books.book_id = books.id
+            and user_books.user_id = (select auth.uid())
+        )
+      )
+      and books.file_path = storage.objects.name
+    )
+    or exists (
+      select 1
+      from public.books
+      where books.cover_path = storage.objects.name
+    )
+  )
+);
+
+create policy "books_storage_admin_delete"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'books'
+  and owner_id = (select auth.uid()::text)
+  and public.is_library_admin()
+);
+
+drop function if exists public.get_shared_book(uuid);
 create or replace function public.get_shared_book(requested_id uuid)
 returns table (
-  title text,
-  subtitle text,
-  description text,
-  author text
-)
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select b.title, b.subtitle, b.description, b.author
-  from public.books as b
-  where b.id = requested_id
-  limit 1;
-$$;
-
-revoke all on function public.get_shared_book(uuid) from public;
-grant execute on function public.get_shared_book(uuid) to anon, authenticated;
-
-create or replace function public.get_shared_book_by_slug(requested_slug text)
-returns table (
+  id uuid,
   title text,
   subtitle text,
   description text,
@@ -206,6 +327,44 @@ security definer
 set search_path = ''
 as $$
   select
+    b.id,
+    b.title,
+    b.subtitle,
+    b.description,
+    b.author,
+    b.slug,
+    b.file_path,
+    b.original_filename,
+    b.cover_path
+  from public.books as b
+  where b.id = requested_id
+    and (select auth.uid()) is not null
+  limit 1;
+$$;
+
+revoke all on function public.get_shared_book(uuid) from public;
+grant execute on function public.get_shared_book(uuid) to authenticated;
+
+drop function if exists public.get_shared_book_by_slug(text);
+create or replace function public.get_shared_book_by_slug(requested_slug text)
+returns table (
+  id uuid,
+  title text,
+  subtitle text,
+  description text,
+  author text,
+  slug text,
+  file_path text,
+  original_filename text,
+  cover_path text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    b.id,
     b.title,
     b.subtitle,
     b.description,
@@ -216,8 +375,44 @@ as $$
     b.cover_path
   from public.books as b
   where b.slug = requested_slug
+    and (select auth.uid()) is not null
   limit 1;
 $$;
 
 revoke all on function public.get_shared_book_by_slug(text) from public;
-grant execute on function public.get_shared_book_by_slug(text) to anon, authenticated;
+grant execute on function public.get_shared_book_by_slug(text) to authenticated;
+
+create or replace function public.save_shared_book(requested_book text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  matched_book_id uuid;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Debes iniciar sesión para guardar un libro.';
+  end if;
+
+  select b.id
+  into matched_book_id
+  from public.books as b
+  where b.slug = requested_book
+     or b.id::text = requested_book
+  limit 1;
+
+  if matched_book_id is null then
+    raise exception 'No encontramos el libro compartido.';
+  end if;
+
+  insert into public.user_books (user_id, book_id)
+  values ((select auth.uid()), matched_book_id)
+  on conflict (user_id, book_id) do nothing;
+
+  return matched_book_id;
+end;
+$$;
+
+revoke all on function public.save_shared_book(text) from public, anon;
+grant execute on function public.save_shared_book(text) to authenticated;

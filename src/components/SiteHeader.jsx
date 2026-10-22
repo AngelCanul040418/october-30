@@ -1,9 +1,9 @@
 import { BookOpen, LogOut } from 'lucide-react'
 
-function SiteHeader({ note, onSignOut }) {
+function SiteHeader({ note, onSignOut, homeHref = '/' }) {
   return (
     <header className="topbar">
-      <a className="brand" href="/" aria-label="Biblioteca, inicio">
+      <a className="brand" href={homeHref} aria-label="Biblioteca, inicio">
         <span className="brand-mark"><BookOpen size={19} strokeWidth={2.2} /></span>
         <span>Biblioteca</span>
       </a>

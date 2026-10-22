@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import AdminPage from './pages/AdminPage.jsx'
+import ReaderLibraryPage from './pages/ReaderLibraryPage.jsx'
 import SharedBookPage from './pages/SharedBookPage.jsx'
 import './styles/App.css'
 
@@ -20,6 +21,7 @@ function App() {
       <Routes>
         <Route path="/" element={<AdminPage />} />
         <Route path="/book/:bookSlug" element={<SharedBookPage />} />
+        <Route path="/library" element={<ReaderLibraryPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
