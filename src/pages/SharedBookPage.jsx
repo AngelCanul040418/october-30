@@ -253,7 +253,7 @@ function SharedBookPage() {
         ) : checkingSession ? (
           <div className="page-loading session-loading"><span className="spinner" /> Comprobando sesión...</div>
         ) : !user ? (
-          <ReaderAuthPanel returnTo={`${location.pathname}${location.search}`} />
+          <ReaderAuthPanel />
         ) : metadata && (!hasOpenedBook || !canRead) ? (
           <section className="book-intro" aria-labelledby="book-intro-title">
                 <div className="book-intro-copy">

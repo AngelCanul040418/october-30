@@ -111,9 +111,24 @@ create unique index if not exists books_slug_key on public.books (slug);
 
 create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  role text not null default 'reader' check (role in ('admin', 'reader')),
+  role text not null default 'reader',
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.user_profiles
+  add column if not exists is_active boolean not null default true;
+
+alter table public.user_profiles
+  drop constraint if exists user_profiles_role_check;
+
+update public.user_profiles
+set role = 'super_admin'
+where role = 'admin';
+
+alter table public.user_profiles
+  add constraint user_profiles_role_check
+  check (role in ('super_admin', 'author', 'reader'));
 
 create table if not exists public.user_books (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -148,46 +163,14 @@ after insert on auth.users
 for each row execute procedure public.handle_new_auth_user();
 
 insert into public.user_profiles (user_id, role)
-select
-  auth_user.id,
-  case
-    when exists (select 1 from public.books where owner_id = auth_user.id) then 'admin'
-    else 'reader'
-  end
+select auth_user.id, 'reader'
 from auth.users as auth_user
-on conflict (user_id) do update
-set role = 'admin'
-where exists (
-  select 1
-  from public.books
-  where owner_id = excluded.user_id
-);
+on conflict (user_id) do nothing;
 
 alter table public.user_profiles enable row level security;
 alter table public.user_books enable row level security;
 
-drop policy if exists "user_profiles_select_self" on public.user_profiles;
-create policy "user_profiles_select_self"
-on public.user_profiles
-for select
-to authenticated
-using (user_id = (select auth.uid()));
-
-drop policy if exists "user_books_select_self" on public.user_books;
-create policy "user_books_select_self"
-on public.user_books
-for select
-to authenticated
-using (user_id = (select auth.uid()));
-
-drop policy if exists "user_books_delete_self" on public.user_books;
-create policy "user_books_delete_self"
-on public.user_books
-for delete
-to authenticated
-using (user_id = (select auth.uid()));
-
-create or replace function public.is_library_admin()
+create or replace function public.is_library_user_active()
 returns boolean
 language sql
 stable
@@ -198,12 +181,55 @@ as $$
     select 1
     from public.user_profiles
     where user_id = (select auth.uid())
-      and role = 'admin'
+      and is_active
   );
 $$;
 
-revoke all on function public.is_library_admin() from public, anon;
-grant execute on function public.is_library_admin() to authenticated;
+revoke all on function public.is_library_user_active() from public, anon;
+grant execute on function public.is_library_user_active() to authenticated;
+
+create or replace function public.is_library_super_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_profiles
+    where user_id = (select auth.uid())
+      and role = 'super_admin'
+      and is_active
+  );
+$$;
+
+revoke all on function public.is_library_super_admin() from public, anon;
+grant execute on function public.is_library_super_admin() to authenticated;
+
+drop policy if exists "user_profiles_select_self" on public.user_profiles;
+create policy "user_profiles_select_self"
+on public.user_profiles
+for select
+to authenticated
+using (
+  (user_id = (select auth.uid()) and public.is_library_user_active())
+  or public.is_library_super_admin()
+);
+
+drop policy if exists "user_books_select_self" on public.user_books;
+create policy "user_books_select_self"
+on public.user_books
+for select
+to authenticated
+using (user_id = (select auth.uid()) and public.is_library_user_active());
+
+drop policy if exists "user_books_delete_self" on public.user_books;
+create policy "user_books_delete_self"
+on public.user_books
+for delete
+to authenticated
+using (user_id = (select auth.uid()) and public.is_library_user_active());
 
 alter table public.books enable row level security;
 revoke all on public.books from public, anon;
@@ -219,8 +245,17 @@ on public.books
 for select
 to authenticated
 using (
-  public.is_library_admin()
-  or owner_id = (select auth.uid())
+  public.is_library_super_admin()
+  or (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.user_profiles
+      where user_id = (select auth.uid())
+        and role = 'author'
+        and is_active
+    )
+  )
   or exists (
     select 1
     from public.user_books
@@ -235,21 +270,63 @@ for insert
 to authenticated
 with check (
   owner_id = (select auth.uid())
-  and public.is_library_admin()
+  and exists (
+    select 1
+    from public.user_profiles
+    where user_id = (select auth.uid())
+      and role in ('super_admin', 'author')
+      and is_active
+  )
 );
 
 create policy "folio_books_owner_update"
 on public.books
 for update
 to authenticated
-using (owner_id = (select auth.uid()) and public.is_library_admin())
-with check (owner_id = (select auth.uid()) and public.is_library_admin());
+using (
+  public.is_library_super_admin()
+  or (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.user_profiles
+      where user_id = (select auth.uid())
+        and role = 'author'
+        and is_active
+    )
+  )
+)
+with check (
+  public.is_library_super_admin()
+  or (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.user_profiles
+      where user_id = (select auth.uid())
+        and role = 'author'
+        and is_active
+    )
+  )
+);
 
 create policy "folio_books_owner_delete"
 on public.books
 for delete
 to authenticated
-using (owner_id = (select auth.uid()) and public.is_library_admin());
+using (
+  public.is_library_super_admin()
+  or (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.user_profiles
+      where user_id = (select auth.uid())
+        and role = 'author'
+        and is_active
+    )
+  )
+);
 
 drop policy if exists "folio_books_owner_insert" on storage.objects;
 drop policy if exists "folio_books_owner_select" on storage.objects;
@@ -265,7 +342,13 @@ to authenticated
 with check (
   bucket_id = 'books'
   and owner_id = (select auth.uid()::text)
-  and public.is_library_admin()
+  and exists (
+    select 1
+    from public.user_profiles
+    where user_id = (select auth.uid())
+      and role in ('super_admin', 'author')
+      and is_active
+  )
 );
 
 create policy "books_storage_authorized_select"
@@ -275,12 +358,21 @@ to authenticated
 using (
   bucket_id = 'books'
   and (
-    public.is_library_admin()
+    public.is_library_super_admin()
     or exists (
       select 1
       from public.books
       where (
-        books.owner_id = (select auth.uid())
+        (
+          books.owner_id = (select auth.uid())
+          and exists (
+            select 1
+            from public.user_profiles
+            where user_id = (select auth.uid())
+              and role = 'author'
+              and is_active
+          )
+        )
         or exists (
           select 1
           from public.user_books
@@ -293,7 +385,26 @@ using (
     or exists (
       select 1
       from public.books
-      where books.cover_path = storage.objects.name
+      where (
+        (
+          books.owner_id = (select auth.uid())
+          and exists (
+            select 1
+            from public.user_profiles
+            where user_id = (select auth.uid())
+              and role = 'author'
+              and is_active
+          )
+        )
+        or public.is_library_super_admin()
+        or exists (
+          select 1
+          from public.user_books
+          where user_books.book_id = books.id
+            and user_books.user_id = (select auth.uid())
+        )
+      )
+      and books.cover_path = storage.objects.name
     )
   )
 );
@@ -304,9 +415,38 @@ for delete
 to authenticated
 using (
   bucket_id = 'books'
-  and owner_id = (select auth.uid()::text)
-  and public.is_library_admin()
+  and (
+    public.is_library_super_admin()
+    or exists (
+      select 1
+      from public.books
+      where books.owner_id = (select auth.uid())
+        and exists (
+          select 1
+          from public.user_profiles
+          where user_id = (select auth.uid())
+            and role = 'author'
+            and is_active
+        )
+        and books.file_path = storage.objects.name
+    )
+    or exists (
+      select 1
+      from public.books
+      where books.owner_id = (select auth.uid())
+        and exists (
+          select 1
+          from public.user_profiles
+          where user_id = (select auth.uid())
+            and role = 'author'
+            and is_active
+        )
+        and books.cover_path = storage.objects.name
+    )
+  )
 );
+
+drop function if exists public.is_library_admin();
 
 drop function if exists public.get_shared_book(uuid);
 create or replace function public.get_shared_book(requested_id uuid)
@@ -339,6 +479,7 @@ as $$
   from public.books as b
   where b.id = requested_id
     and (select auth.uid()) is not null
+    and public.is_library_user_active()
   limit 1;
 $$;
 
@@ -376,6 +517,7 @@ as $$
   from public.books as b
   where b.slug = requested_slug
     and (select auth.uid()) is not null
+    and public.is_library_user_active()
   limit 1;
 $$;
 
@@ -391,8 +533,8 @@ as $$
 declare
   matched_book_id uuid;
 begin
-  if (select auth.uid()) is null then
-    raise exception 'Debes iniciar sesión para guardar un libro.';
+  if (not public.is_library_user_active()) then
+    raise exception 'Tu cuenta no está activa.';
   end if;
 
   select b.id

@@ -314,6 +314,37 @@
   font-size: 13px;
 }
 
+.password-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.password-visibility-button {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  color: #66736a;
+  background: transparent;
+  cursor: pointer;
+}
+
+.password-visibility-button:focus-visible {
+  outline: 2px solid rgba(89, 128, 99, 0.25);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .login-form input:focus {
   border-color: #789178;
   box-shadow: 0 0 0 3px rgba(97, 134, 107, 0.12);
@@ -403,6 +434,266 @@
 
 .dashboard-heading .eyebrow {
   color: #718774;
+}
+
+.dashboard-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.dashboard-heading-actions .secondary-button,
+.dashboard-heading-actions .primary-button {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-decoration: none;
+}
+
+.user-management-main {
+  width: min(100% - 48px, 960px);
+}
+
+.user-management-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #66736a;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.user-management-backlink:hover {
+  color: #294d3d;
+}
+
+.user-management-heading {
+  margin: 28px auto 24px;
+  text-align: center;
+}
+
+.user-management-heading .reader-auth-icon {
+  margin: 0 auto 12px;
+}
+
+.user-management-heading .eyebrow {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.user-management-heading h1 {
+  margin: 0;
+  color: #222c27;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 39px);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.user-management-heading > p:last-child {
+  margin: 8px auto 0;
+  color: #797b75;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.user-invite-card,
+.user-list-card {
+  margin-top: 16px;
+  padding: 21px;
+  border: 1px solid #e9e7e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.user-section-title,
+.user-list-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.user-section-title > svg {
+  flex: 0 0 auto;
+  color: #63806a;
+}
+
+.user-section-title h2 {
+  margin: 0;
+  color: #27332c;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.user-section-title p {
+  margin: 4px 0 0;
+  color: #85877f;
+  font-size: 12px;
+}
+
+.user-invite-fields {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.user-invite-fields label {
+  display: grid;
+  gap: 7px;
+  color: #515b52;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.user-invite-fields input,
+.user-invite-fields select,
+.user-table select {
+  width: 100%;
+  min-height: 39px;
+  padding: 0 10px;
+  border: 1px solid #e0e2db;
+  border-radius: 7px;
+  color: #303832;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+
+.user-invite-fields .primary-button {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.user-invite-fields .primary-button:disabled,
+.user-list-heading .secondary-button:disabled,
+.user-status-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.user-list-heading {
+  justify-content: space-between;
+}
+
+.user-list-heading .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.user-list-empty {
+  margin: 20px 0 3px;
+  color: #85877f;
+  text-align: center;
+  font-size: 13px;
+}
+
+.user-table-scroll {
+  margin-top: 15px;
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.user-table th {
+  padding: 10px 12px;
+  color: #777e75;
+  border-bottom: 1px solid #ecece6;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.user-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0eb;
+  color: #414b43;
+  font-size: 12px;
+}
+
+.user-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.user-table td:first-child strong,
+.user-table td:first-child span {
+  display: block;
+}
+
+.user-table td:first-child strong {
+  max-width: 280px;
+  overflow: hidden;
+  color: #303832;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.user-table td:first-child span {
+  margin-top: 4px;
+  color: #8b8d86;
+  font-size: 10px;
+}
+
+.user-table select {
+  min-width: 150px;
+  min-height: 34px;
+}
+
+.user-status {
+  display: inline-flex;
+  padding: 5px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.user-status.is-active {
+  color: #386346;
+  background: #edf5ee;
+}
+
+.user-status.is-inactive {
+  color: #8d4a43;
+  background: #fbefed;
+}
+
+.user-status-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid #dbe6dd;
+  border-radius: 7px;
+  color: #42664b;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.user-status-button.deactivate {
+  border-color: #f0dfdc;
+  color: #a14840;
+}
+
+.user-status-button:hover {
+  background: #f6f8f5;
 }
 
 .metadata-editor .eyebrow,
@@ -1933,6 +2224,27 @@
     width: 100%;
   }
 
+  .dashboard-heading-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .dashboard-heading-actions .secondary-button {
+    width: 100%;
+  }
+
+  .user-management-main {
+    width: min(calc(100% - 32px), 640px);
+  }
+
+  .user-invite-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .user-invite-fields .primary-button {
+    width: 100%;
+  }
+
   .book-list-item {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -2329,6 +2641,21 @@
   outline: 0;
   color: #463941;
   background: #fff;
+}
+
+.reader-auth-form .password-input-wrap {
+  width: 100%;
+}
+
+.reader-auth-form .password-input-wrap input {
+  padding-right: 42px;
+}
+
+.reader-auth-form .password-visibility-button {
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  color: #8b6d7d;
 }
 
 .reader-auth-form input:focus {

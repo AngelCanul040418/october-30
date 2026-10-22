@@ -1,7 +1,9 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import AdminPage from './pages/AdminPage.jsx'
 import ReaderLibraryPage from './pages/ReaderLibraryPage.jsx'
+import SetPasswordPage from './pages/SetPasswordPage.jsx'
 import SharedBookPage from './pages/SharedBookPage.jsx'
+import UserManagementPage from './pages/UserManagementPage.jsx'
 import './styles/App.css'
 
 function NotFoundPage() {
@@ -19,9 +21,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AdminPage />} />
+        <Route path="/" element={<AdminPage audience="super_admin" />} />
+        <Route path="/author" element={<AdminPage audience="author" />} />
+        <Route path="/users" element={<UserManagementPage />} />
         <Route path="/book/:bookSlug" element={<SharedBookPage />} />
         <Route path="/library" element={<ReaderLibraryPage />} />
+        <Route path="/set-password" element={<SetPasswordPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

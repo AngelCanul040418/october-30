@@ -184,7 +184,7 @@ function ReaderLibraryPage() {
         {checkingSession ? (
           <div className="page-loading session-loading"><span className="spinner" /> Comprobando sesión...</div>
         ) : !user ? (
-          <ReaderAuthPanel returnTo="/library" />
+          <ReaderAuthPanel />
         ) : (
           <>
             <div className="reader-library-heading">

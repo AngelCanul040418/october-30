@@ -5,15 +5,19 @@ import {
   Check,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   FileText,
   Pencil,
   Plus,
   QrCode,
+  ShieldCheck,
   Trash2,
   Upload,
   X,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { Navigate } from 'react-router-dom'
 import BookReader from '../components/BookReader.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import {
@@ -24,7 +28,7 @@ import {
 
 const bookIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const emptyMetadata = { title: '', subtitle: '', description: '', author: '' }
-const bookFields = 'id,title,subtitle,description,author,file_path,slug,original_filename,cover_path,created_at,updated_at'
+const bookFields = 'id,owner_id,title,subtitle,description,author,file_path,slug,original_filename,cover_path,created_at,updated_at'
 const MAX_COVER_SIZE = 10 * 1024 * 1024
 
 async function showAdminAlert(options) {
@@ -118,12 +122,13 @@ async function downloadQrPng(svgElement, filename) {
   }
 }
 
-function AdminPage() {
+function AdminPage({ audience = 'super_admin' }) {
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
   const [roleCheck, setRoleCheck] = useState(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [file, setFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -151,7 +156,9 @@ function AdminPage() {
   const qrCodeRef = useRef(null)
   const currentRoleCheck = roleCheck?.userId === user?.id ? roleCheck : null
   const checkingRole = Boolean(user && !currentRoleCheck)
-  const isAdmin = currentRoleCheck?.role === 'admin'
+  const isSuperAdmin = currentRoleCheck?.role === 'super_admin'
+  const isAuthor = currentRoleCheck?.role === 'author'
+  const canManageBooks = isSuperAdmin || isAuthor
 
   function openQr(book) {
     setQrDownloadError('')
@@ -207,6 +214,7 @@ function AdminPage() {
         const id = entry.name.slice(0, -4)
         if (!bookIdPattern.test(id)) return null
         const metadata = metadataById.get(id)
+        if (!isSuperAdmin && (!metadata || metadata.owner_id !== user?.id)) return null
         return {
           ...emptyMetadata,
           ...metadata,
@@ -228,7 +236,7 @@ function AdminPage() {
       if (coverError) throw coverError
       return { ...book, cover_url: signedCover.signedUrl }
     }))
-  }, [])
+  }, [isSuperAdmin, user])
 
   const loadBooks = useCallback(async () => {
     setLoadingBooks(true)
@@ -288,7 +296,7 @@ function AdminPage() {
           return
         }
         setRoleCheck({ userId: user.id, role: data?.role || 'reader' })
-        if (data?.role !== 'admin') setActiveView('dashboard')
+        if (!['super_admin', 'author'].includes(data?.role)) setActiveView('dashboard')
       })
       .catch((profileError) => {
         if (active) {
@@ -303,7 +311,7 @@ function AdminPage() {
   }, [user])
 
   useEffect(() => {
-    if (!user || !isAdmin) return undefined
+    if (!user || !canManageBooks) return undefined
 
     let active = true
     Promise.resolve()
@@ -327,7 +335,7 @@ function AdminPage() {
     return () => {
       active = false
     }
-  }, [fetchBooks, isAdmin, user])
+  }, [fetchBooks, canManageBooks, user])
 
   async function signIn(event) {
     event.preventDefault()
@@ -577,9 +585,8 @@ function AdminPage() {
         coverPath = uploadedCoverPath
       }
 
-      const { error: updateError } = await supabase.from('books').upsert({
-        id: editingBook.id,
-        owner_id: user.id,
+      const updatedMetadata = {
+        owner_id: editingBook.owner_id || user.id,
         file_path: editingBook.file_path,
         slug: createUniqueSlug(bookTitle, books, editingBook.id),
         original_filename: editingBook.original_filename || `${editingBook.title}.pdf`,
@@ -589,7 +596,11 @@ function AdminPage() {
         description: description.trim(),
         author: author.trim(),
         updated_at: new Date().toISOString(),
-      })
+      }
+      const updateQuery = editingBook.hasMetadata
+        ? supabase.from('books').update(updatedMetadata).eq('id', editingBook.id)
+        : supabase.from('books').insert({ id: editingBook.id, ...updatedMetadata })
+      const { error: updateError } = await updateQuery
       if (updateError) throw updateError
       coverMetadataSaved = true
 
@@ -858,16 +869,20 @@ function AdminPage() {
 
   return (
     <div className="app-shell">
-      <SiteHeader note="Administración" onSignOut={user ? signOut : undefined} />
+      <SiteHeader
+        note={audience === 'author' ? 'Panel de autor' : 'Administración'}
+        homeHref={audience === 'author' ? '/author' : '/'}
+        onSignOut={user ? signOut : undefined}
+      />
       <main className="main-content">
         {(!user || activeView === 'create') && (
           <section className="intro">
-            <p className="eyebrow"><span /> ADMINISTRACIÓN</p>
-            <h1>{user ? 'Nuevo libro digital' : 'Panel privado'}</h1>
+            <p className="eyebrow"><span /> {audience === 'author' ? 'PANEL DE AUTOR' : 'ADMINISTRACIÓN'}</p>
+            <h1>{user ? 'Nuevo libro digital' : 'Acceso privado'}</h1>
             <p className="intro-copy">
               {user
                 ? 'Sube el PDF y agrega los detalles que aparecerán en la página de lectura.'
-                : 'Inicia sesión para administrar tus libros.'}
+                : 'Inicia sesión con una cuenta autorizada para continuar.'}
             </p>
           </section>
         )}
@@ -883,7 +898,7 @@ function AdminPage() {
           <section className="login-card">
             <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
             <h2>Acceso solo para ti</h2>
-            <p className="upload-description">Usa la cuenta de administrador creada en Supabase.</p>
+            <p className="upload-description">Usa el correo y la contraseña de tu cuenta autorizada.</p>
             <form className="login-form" onSubmit={signIn}>
               <label htmlFor="admin-email">Correo electrónico</label>
               <input
@@ -895,22 +910,37 @@ function AdminPage() {
                 required
               />
               <label htmlFor="admin-password">Contraseña de la cuenta</label>
-              <input
-                id="admin-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
+              <div className="password-input-wrap admin-password-wrap">
+                <input
+                  id="admin-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                <button
+                  className="password-visibility-button"
+                  type="button"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <button className="primary-button" type="submit">Iniciar sesión</button>
             </form>
             {error && <p className="error-message" role="alert">{error}</p>}
           </section>
-        ) : !isAdmin ? (
+        ) : isAuthor && audience === 'super_admin' ? (
+          <Navigate to="/author" replace />
+        ) : isSuperAdmin && audience === 'author' ? (
+          <Navigate to="/" replace />
+        ) : !canManageBooks ? (
           <section className="login-card">
             <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
-            <h2>Esta cuenta no administra libros</h2>
+            <h2>Esta cuenta no puede publicar libros</h2>
             <p className="upload-description">Puedes acceder a tu biblioteca de lector y a los libros que hayas guardado.</p>
             <a className="primary-button" href="/library">Ir a mi biblioteca</a>
           </section>
@@ -920,14 +950,26 @@ function AdminPage() {
               <>
                 <div className="dashboard-heading">
                   <div>
-                    <p className="eyebrow">TU BIBLIOTECA PRIVADA</p>
-                    <h2>Todos tus libros</h2>
-                    <p>Organiza tus publicaciones y comparte cada libro con un enlace o código QR.</p>
+                    <p className="eyebrow">{isSuperAdmin ? 'BIBLIOTECA COMPLETA' : 'TUS PUBLICACIONES'}</p>
+                    <h2>{isSuperAdmin ? 'Todos los libros' : 'Mis libros'}</h2>
+                    <p>
+                      {isSuperAdmin
+                        ? 'Administra todos los libros y comparte cada publicación mediante un enlace o código QR.'
+                        : 'Administra tus propios libros y comparte cada publicación mediante un enlace o código QR.'}
+                    </p>
                   </div>
-                  <button className="primary-button" onClick={startNewBook}>
-                    <Plus size={17} />
-                    Nuevo libro digital
-                  </button>
+                  <div className="dashboard-heading-actions">
+                    {isSuperAdmin && (
+                      <a className="secondary-button" href="/users">
+                        <ShieldCheck size={16} />
+                        Usuarios y roles
+                      </a>
+                    )}
+                    <button className="primary-button" onClick={startNewBook}>
+                      <Plus size={17} />
+                      Nuevo libro digital
+                    </button>
+                  </div>
                 </div>
                 {error && <p className="error-message catalog-error" role="alert">{error}</p>}
                 {error.includes('libros') && (
@@ -941,7 +983,7 @@ function AdminPage() {
                   <section className="book-catalog catalog-empty">
                     <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
                     <h2>Aún no tienes libros</h2>
-                    <p className="upload-description">Agrega tu primer libro digital para crear un enlace de lectura.</p>
+                    <p className="upload-description">Agrega un libro digital para crear un enlace de lectura.</p>
                     <button className="primary-button" onClick={startNewBook}>
                       <Plus size={17} />
                       Agregar nuevo libro digital
@@ -950,7 +992,7 @@ function AdminPage() {
                 ) : (
                   <section className="book-catalog" aria-labelledby="catalog-title">
                     <div className="catalog-heading">
-                      <h2 id="catalog-title">Libros en tu biblioteca</h2>
+                      <h2 id="catalog-title">{isSuperAdmin ? 'Libros de la plataforma' : 'Mis publicaciones'}</h2>
                       <span className="catalog-count">{books.length}</span>
                     </div>
                     <ul className="book-list">

@@ -27,21 +27,35 @@ npm run dev
 ```
 
 1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave `publishable`.
-2. Despliega la versión del cliente que incluye autenticación y URLs firmadas y, en coordinación con ese despliegue, ejecuta el SQL actualizado de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase. El script migra los slugs, nombres originales y portadas, crea perfiles y bibliotecas, y cambia el bucket `books` a privado. **No ejecutes el SQL antes de desplegar el cliente actualizado**: el código anterior usa URLs públicas y dejará de poder leer los archivos cuando el bucket sea privado.
-3. En Supabase Auth, crea tu cuenta administradora (o conserva la existente). El script promueve automáticamente a `admin` las cuentas que ya sean propietarias de libros. Si la cuenta administradora no tiene libros, asígnale manualmente el rol en el SQL Editor:
+2. Despliega el cliente actualizado y ejecuta el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase. El script prepara los perfiles y bibliotecas, actualiza los roles anteriores y mantiene el bucket `books` privado. **Despliega el cliente antes de ejecutar el SQL** para que los enlaces firmados y los nuevos permisos estén disponibles juntos.
+3. Los perfiles que tenían el rol `admin` se migran a `super_admin`. Para asignar ese rol manualmente a la cuenta inicial, usa el UUID de la cuenta desde Authentication > Users:
 
    ```sql
    update public.user_profiles
-   set role = 'admin'
+   set role = 'super_admin'
    where user_id = '<UUID de la cuenta en Authentication > Users>';
    ```
 
-4. En Supabase Auth, habilita el proveedor Email y el registro de usuarios. Configura también las URL de redirección para tu dominio de Vercel y `http://localhost:5173/**`. El registro de lectores está disponible desde `/library` o al abrir un enlace compartido; si la confirmación por correo está activa, deberán confirmar la cuenta antes de iniciar sesión.
-5. Ejecuta `npm run dev` e inicia sesión en el panel con la cuenta administradora.
+4. Despliega la función de gestión de usuarios. Instala e inicia sesión con Supabase CLI, después ejecuta:
 
-El panel de administración requiere una sesión con rol `admin`. La vista `/library` permite a los lectores crear una cuenta, iniciar sesión, abrir los libros guardados y quitarlos de su biblioteca. Los enlaces `/book/<titulo>` y los enlaces UUID anteriores requieren sesión; al abrir un libro compartido, el lector puede guardarlo en su biblioteca para acceder al PDF. Los PDF y las portadas están en el bucket privado `books`; el cliente genera URLs firmadas de duración limitada solo para cuentas autorizadas. El rol de lector se asigna automáticamente y no permite subir ni administrar libros.
+   ```sh
+   supabase secrets set APP_URL=https://tu-dominio-de-vercel.vercel.app
+   supabase functions deploy manage-users
+   ```
 
-Cualquier persona que se registre y tenga un enlace compartido puede guardar ese libro en su biblioteca. Si en el futuro se necesita restringir el acceso a destinatarios específicos, habrá que agregar invitaciones o una relación explícita entre el libro y la cuenta destinataria.
+   La función usa las variables `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` del entorno de Supabase; la clave de servicio nunca debe agregarse a Vite ni al frontend.
+5. En Supabase Auth, habilita el proveedor Email, configura SMTP para que se entreguen las invitaciones y agrega las URL de redirección de Vercel y `http://localhost:5173/**` a la lista permitida. En Authentication > Sign In / Providers, desactiva el registro público de cuentas. Las cuentas se crean desde `/users`, solo por un super administrador, y reciben un enlace para establecer su contraseña en `/set-password`.
+6. Ejecuta `npm run dev` e inicia sesión con la cuenta de super administrador.
+
+## Roles y acceso
+
+- `super_admin`: administra todos los libros y es la única persona que puede invitar cuentas, asignar roles y activar o desactivar usuarios. El rol `admin` anterior se migra a `super_admin`.
+- `author`: publica, edita y elimina únicamente sus propios libros; no puede acceder a `/users`.
+- `reader`: inicia sesión en `/library`, guarda libros compartidos y lee su biblioteca. No puede publicar libros.
+
+El cliente protege las vistas por rol, la función `manage-users` exige una sesión superadministradora y las políticas RLS de Supabase aplican los permisos reales sobre las tablas y Storage. Desactivar una cuenta bloquea el inicio de sesión y las nuevas solicitudes a la base y Storage; no elimina sus libros ni su perfil. Las URLs firmadas que ya se hubieran emitido siguen funcionando hasta vencer (actualmente, en un máximo de 24 horas). Los PDF y las portadas permanecen en el bucket privado `books`.
+
+El propietario de un enlace compartido puede invitar a un lector a guardar ese libro en su biblioteca. Si más adelante se requiere que solo destinatarios específicos puedan reclamar un enlace, habrá que agregar invitaciones vinculadas a cada libro.
 
 ## Producción
 
