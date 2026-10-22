@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BookOpen, Library, Trash2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import ReaderAuthPanel from '../components/ReaderAuthPanel.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { BOOKS_BUCKET, isSupabaseConfigured, supabase } from '../lib/supabase.js'
@@ -17,6 +17,7 @@ async function showReaderAlert(options) {
 
 function ReaderLibraryPage() {
   const [user, setUser] = useState(null)
+  const [role, setRole] = useState('')
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
   const [books, setBooks] = useState([])
   const [booksUserId, setBooksUserId] = useState('')
@@ -67,6 +68,7 @@ function ReaderLibraryPage() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) {
         setUser(session?.user ?? null)
+        setRole('')
         if (!session?.user) {
           setBooks([])
           setBooksUserId('')
@@ -90,7 +92,36 @@ function ReaderLibraryPage() {
   }, [])
 
   useEffect(() => {
-    if (!user) return undefined
+    if (!supabase || !user) return undefined
+
+    let active = true
+    supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data, error: profileError }) => {
+        if (!active) return
+        if (profileError) {
+          setError(`No se pudo comprobar el rol de la cuenta: ${profileError.message}`)
+          setRole('reader')
+          return
+        }
+        setRole(data?.role ?? 'reader')
+      })
+      .catch((profileError) => {
+        if (!active) return
+        setError(`No se pudo comprobar el rol de la cuenta: ${profileError.message}`)
+        setRole('reader')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user || role !== 'reader') return undefined
 
     let active = true
     Promise.resolve().then(() => {
@@ -99,7 +130,7 @@ function ReaderLibraryPage() {
     return () => {
       active = false
     }
-  }, [loadBooks, user])
+  }, [loadBooks, role, user])
 
   async function removeBook(book) {
     if (!supabase || removingBookId) return
@@ -185,6 +216,12 @@ function ReaderLibraryPage() {
           <div className="page-loading session-loading"><span className="spinner" /> Comprobando sesión...</div>
         ) : !user ? (
           <ReaderAuthPanel returnTo="/library" />
+        ) : !role ? (
+          <div className="page-loading session-loading"><span className="spinner" /> Comprobando rol...</div>
+        ) : role === 'super_admin' ? (
+          <Navigate to="/" replace />
+        ) : role === 'author' ? (
+          <Navigate to="/author" replace />
         ) : (
           <>
             <div className="reader-library-heading">

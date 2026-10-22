@@ -135,6 +135,8 @@ function SuperAdminPage() {
             <p>Este espacio está reservado para el super administrador.</p>
             <a className="primary-button" href="/author">Ir al acceso</a>
           </section>
+        ) : !role ? (
+          <div className="page-loading session-loading"><span className="spinner" /> Comprobando rol...</div>
         ) : role === 'super_admin' ? (
           <>
             <section className="super-admin-welcome">
