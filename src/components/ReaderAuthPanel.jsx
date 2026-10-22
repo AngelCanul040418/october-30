@@ -10,6 +10,13 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [resending, setResending] = useState(false)
+
+  function getSafeReturnTo() {
+    return returnTo.startsWith('/') && !returnTo.startsWith('//')
+      ? returnTo
+      : '/library'
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -21,14 +28,11 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
 
     try {
       if (mode === 'sign-up') {
-        const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//')
-          ? returnTo
-          : '/library'
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}${safeReturnTo}`,
+            emailRedirectTo: `${window.location.origin}${getSafeReturnTo()}`,
           },
         })
         if (signUpError) throw signUpError
@@ -56,6 +60,32 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
       )
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function resendConfirmation() {
+    if (!supabase || submitting || resending || !email.trim()) {
+      setError('Escribe tu correo electrónico para reenviar la confirmación.')
+      return
+    }
+
+    setError('')
+    setMessage('')
+    setResending(true)
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}${getSafeReturnTo()}`,
+        },
+      })
+      if (resendError) throw resendError
+      setMessage('Te enviamos un nuevo correo de confirmación. Usa únicamente el enlace más reciente.')
+    } catch (resendError) {
+      setError(`No se pudo reenviar el correo: ${resendError.message}`)
+    } finally {
+      setResending(false)
     }
   }
 
@@ -114,6 +144,16 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
               ? 'Crear cuenta y continuar'
               : 'Entrar a mi biblioteca'}
         </button>
+        {mode === 'sign-in' && (
+          <button
+            className="reader-auth-resend"
+            type="button"
+            onClick={resendConfirmation}
+            disabled={submitting || resending}
+          >
+            {resending ? 'Reenviando…' : 'Reenviar correo de confirmación'}
+          </button>
+        )}
       </form>
       <p className="reader-auth-switch">
         {mode === 'sign-up' ? '¿Ya tienes cuenta?' : '¿Es tu primera vez?'}

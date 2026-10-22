@@ -2829,6 +2829,28 @@
   box-shadow: 0 0 0 3px rgba(195, 78, 115, 0.12);
 }
 
+.reader-auth-resend {
+  margin: 11px auto 0;
+  display: block;
+  border: 0;
+  color: #a83e61;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.reader-auth-resend:hover {
+  color: #7d2d49;
+}
+
+.reader-auth-resend:disabled {
+  color: #aaa0a2;
+  cursor: wait;
+}
+
 .reader-auth-form .book-intro-open {
   width: 100%;
   margin-top: 12px;
