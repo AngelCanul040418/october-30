@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Power, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, Power, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
@@ -260,6 +260,56 @@ function UserManagementPage() {
         setError(`El estado cambió, pero no se pudo mostrar la confirmación: ${alertError.message}`)
       }
     }
+
+  }
+
+  async function deleteUser(targetUser) {
+    if (!supabase || savingUserId) return
+    let confirmation
+    try {
+      confirmation = await showUsersAlert({
+        icon: 'warning',
+        title: '¿Eliminar esta cuenta?',
+        text: `Se eliminará permanentemente ${targetUser.email || 'esta cuenta'} y no se podrá deshacer.`,
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar cuenta',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#b42318',
+      })
+    } catch (alertError) {
+      setError(`No se pudo mostrar la confirmación: ${alertError.message}`)
+      return
+    }
+    if (!confirmation.isConfirmed) return
+
+    setSavingUserId(targetUser.id)
+    setError('')
+    let deleted = false
+    try {
+      await callManagementFunction({
+        action: 'delete',
+        user_id: targetUser.id,
+      })
+      deleted = true
+      setUsers((current) => current.filter((entry) => entry.id !== targetUser.id))
+    } catch (deleteError) {
+      setError(`No se pudo eliminar la cuenta: ${deleteError.message}`)
+    } finally {
+      setSavingUserId('')
+    }
+    if (deleted) {
+      try {
+        await showUsersAlert({
+          icon: 'success',
+          title: 'Cuenta eliminada',
+          text: 'La cuenta y sus datos relacionados fueron eliminados.',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#294d3d',
+        })
+      } catch (alertError) {
+        setError(`La cuenta se eliminó, pero no se pudo mostrar la confirmación: ${alertError.message}`)
+      }
+    }
   }
 
   return (
@@ -410,6 +460,15 @@ function UserManagementPage() {
                             >
                               <Power size={15} />
                               {entry.is_active ? 'Desactivar' : 'Activar'}
+                            </button>
+                            <button
+                              className="user-delete-button"
+                              type="button"
+                              onClick={() => deleteUser(entry)}
+                              disabled={savingUserId === entry.id}
+                            >
+                              <Trash2 size={15} />
+                              Eliminar
                             </button>
                           </td>
                         </tr>

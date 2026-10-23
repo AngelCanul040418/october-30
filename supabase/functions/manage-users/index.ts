@@ -110,6 +110,63 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'La cuenta seleccionada no es válida.' }, 400)
     }
 
+    if (action === 'delete') {
+      if (targetUserId === authData.user.id) {
+        return jsonResponse({ error: 'No puedes eliminar tu propia cuenta.' }, 400)
+      }
+
+      const { data: targetUser, error: targetUserError } = await serviceClient.auth.admin.getUserById(targetUserId)
+      if (targetUserError) throw targetUserError
+      if (!targetUser.user) return jsonResponse({ error: 'No encontramos esa cuenta.' }, 404)
+
+      const { data: targetProfile, error: targetProfileError } = await serviceClient
+        .from('user_profiles')
+        .select('role')
+        .eq('user_id', targetUserId)
+        .maybeSingle()
+      if (targetProfileError) throw targetProfileError
+
+      if (targetProfile?.role === 'super_admin') {
+        const { data: otherSuperAdmins, error: adminsError } = await serviceClient
+          .from('user_profiles')
+          .select('user_id, is_active')
+          .eq('role', 'super_admin')
+          .neq('user_id', targetUserId)
+        if (adminsError) throw adminsError
+        let hasActiveSuperAdmin = false
+        for (const profile of otherSuperAdmins ?? []) {
+          if (!profile.is_active) continue
+          const { data: adminUser, error: adminUserError } = await serviceClient.auth.admin.getUserById(profile.user_id)
+          if (adminUserError) throw adminUserError
+          if (adminUser.user && (!adminUser.user.banned_until || new Date(adminUser.user.banned_until).getTime() <= Date.now())) {
+            hasActiveSuperAdmin = true
+            break
+          }
+        }
+        if (!hasActiveSuperAdmin) {
+          return jsonResponse({ error: 'Debe permanecer al menos un super administrador activo.' }, 400)
+        }
+      }
+
+      const { data: ownedBooks, error: booksError } = await serviceClient
+        .from('books')
+        .select('file_path, cover_path')
+        .eq('owner_id', targetUserId)
+      if (booksError) throw booksError
+
+      const storagePaths = (ownedBooks ?? [])
+        .flatMap((book) => [book.file_path, book.cover_path])
+        .filter((path): path is string => Boolean(path))
+      if (storagePaths.length > 0) {
+        const { error: storageError } = await serviceClient.storage.from('books').remove(storagePaths)
+        if (storageError) throw new Error(`No se pudieron eliminar los archivos de la cuenta: ${storageError.message}`)
+      }
+
+      const { error: deleteError } = await serviceClient.auth.admin.deleteUser(targetUserId)
+      if (deleteError) throw deleteError
+      return jsonResponse({ success: true })
+    }
+
     const { data: targetProfile, error: targetProfileError } = await serviceClient
       .from('user_profiles')
       .select('role')

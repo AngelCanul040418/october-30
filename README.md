@@ -49,11 +49,11 @@ npm run dev
 
 ## Roles y acceso
 
-- `super_admin`: administra todos los libros y es la única persona que puede invitar cuentas, asignar roles y activar o desactivar usuarios. El rol `admin` anterior se migra a `super_admin`.
+- `super_admin`: administra todos los libros y es la única persona que puede invitar cuentas, asignar roles, activar o desactivar usuarios y eliminar cuentas. No puede eliminarse a sí mismo ni borrar al último superadministrador activo.
 - `author`: publica, edita y elimina únicamente sus propios libros; no puede acceder a `/users`.
 - `reader`: puede crear su propia cuenta desde un enlace compartido, guardar libros y leer su biblioteca. No puede publicar libros.
 
-El cliente protege las vistas por rol, la función `manage-users` exige una sesión superadministradora y las políticas RLS de Supabase aplican los permisos reales sobre las tablas y Storage. Desactivar una cuenta bloquea el inicio de sesión y las nuevas solicitudes a la base y Storage; no elimina sus libros ni su perfil. Las URLs firmadas que ya se hubieran emitido siguen funcionando hasta vencer (actualmente, en un máximo de 24 horas). Los PDF y las portadas permanecen en el bucket privado `books`.
+El cliente protege las vistas por rol, la función `manage-users` exige una sesión superadministradora y las políticas RLS de Supabase aplican los permisos reales sobre las tablas y Storage. Desactivar una cuenta bloquea el inicio de sesión y las nuevas solicitudes a la base y Storage; no elimina sus libros ni su perfil. Eliminar una cuenta es permanente y también elimina sus libros, relaciones de biblioteca y archivos asociados. Las URLs firmadas que ya se hubieran emitido siguen funcionando hasta vencer (actualmente, en un máximo de 24 horas). Los PDF y las portadas permanecen en el bucket privado `books`.
 
 El enlace compartido funciona como acceso para reclamar el libro: el lector inicia sesión o crea una cuenta de lector desde esa página, y después puede guardar el libro en su biblioteca. La confirmación de cuenta usa el servicio de correo configurado en Supabase Auth. El SMTP predeterminado puede servir para una prueba pequeña, pero tiene límites de entrega; configura un SMTP propio si las confirmaciones deben llegar de forma fiable a cualquier persona. Si más adelante se requiere que solo destinatarios específicos puedan reclamar un enlace, habrá que agregar invitaciones vinculadas a cada libro.
 
