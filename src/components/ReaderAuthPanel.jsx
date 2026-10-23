@@ -1,17 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
+function getAuthLinkState() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const errorCode = params.get('error_code')
+  const errorDescription = params.get('error_description')
+  const hasExpiredLink = errorCode === 'otp_expired' || params.get('error') === 'access_denied'
+  return {
+    hasExpiredLink,
+    message: hasExpiredLink
+      ? 'Este enlace ya venció o fue reemplazado. Solicita un correo nuevo y usa únicamente el enlace más reciente.'
+      : '',
+    error: !hasExpiredLink && errorDescription
+      ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+      : '',
+  }
+}
+
 function ReaderAuthPanel({ returnTo = '/library' }) {
+  const initialAuthLinkState = getAuthLinkState()
   const [mode, setMode] = useState('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
+  const [error, setError] = useState(initialAuthLinkState.error)
+  const [message, setMessage] = useState(initialAuthLinkState.message)
   const [submitting, setSubmitting] = useState(false)
   const [resending, setResending] = useState(false)
-  const [confirmationPending, setConfirmationPending] = useState(false)
+  const [confirmationPending, setConfirmationPending] = useState(initialAuthLinkState.hasExpiredLink)
+
+  useEffect(() => {
+    if (initialAuthLinkState.hasExpiredLink || initialAuthLinkState.error) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    }
+  }, [initialAuthLinkState.error, initialAuthLinkState.hasExpiredLink])
 
   function getSafeReturnTo() {
     return returnTo.startsWith('/') && !returnTo.startsWith('//')
@@ -58,6 +81,10 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
         if (signInError) throw signInError
       }
     } catch (authError) {
+      const isEmailNotConfirmed = /email not confirmed|email.*confirm/i.test(authError.message)
+      if (mode === 'sign-in' && isEmailNotConfirmed) {
+        setConfirmationPending(true)
+      }
       const message = authError.message === 'Signups not allowed for this instance'
         ? 'El registro de lectores está desactivado en Supabase. El administrador debe activar “Allow new users to sign up” en Authentication > Providers > Email.'
         : authError.message
@@ -66,7 +93,9 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
           ? `No se pudo crear la cuenta: ${message}`
           : mode === 'reset'
             ? `No se pudo enviar el enlace: ${message}`
-          : `No se pudo iniciar sesión: ${message}`,
+          : isEmailNotConfirmed
+            ? 'Tu correo todavía no está confirmado. Puedes solicitar un correo nuevo abajo.'
+            : `No se pudo iniciar sesión: ${message}`,
       )
     } finally {
       setSubmitting(false)
