@@ -129,6 +129,7 @@ function AdminPage({ audience = 'super_admin' }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [sendingReset, setSendingReset] = useState(false)
   const [file, setFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -344,6 +345,23 @@ function AdminPage({ audience = 'super_admin' }) {
     setError('')
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
     if (signInError) setError(`No se pudo iniciar sesión: ${signInError.message}`)
+  }
+
+  async function sendPasswordReset() {
+    if (!supabase || sendingReset) return
+    if (!email.trim()) {
+      setError('Escribe tu correo electrónico para recuperar la contraseña.')
+      return
+    }
+
+    setSendingReset(true)
+    setError('')
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (resetError) setError(`No se pudo enviar el enlace de recuperación: ${resetError.message}`)
+    else setError('Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo y spam.')
+    setSendingReset(false)
   }
 
   async function signOut() {
@@ -936,6 +954,14 @@ function AdminPage({ audience = 'super_admin' }) {
                 </button>
               </div>
               <button className="primary-button" type="submit">Iniciar sesión</button>
+              <button
+                className="reader-auth-resend"
+                type="button"
+                onClick={sendPasswordReset}
+                disabled={sendingReset}
+              >
+                {sendingReset ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
+              </button>
             </form>
             {error && <p className="error-message" role="alert">{error}</p>}
           </section>

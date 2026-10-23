@@ -29,6 +29,7 @@ function App() {
         <Route path="/book/:bookSlug" element={<SharedBookPage />} />
         <Route path="/library" element={<ReaderLibraryPage />} />
         <Route path="/set-password" element={<SetPasswordPage />} />
+        <Route path="/reset-password" element={<SetPasswordPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

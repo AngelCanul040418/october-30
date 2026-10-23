@@ -2873,6 +2873,11 @@
   text-underline-offset: 3px;
 }
 
+.reader-auth-resend svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
 .reader-auth-resend:hover {
   color: #7d2d49;
 }

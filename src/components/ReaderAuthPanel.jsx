@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Eye, EyeOff } from 'lucide-react'
+import { BookOpen, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
 function ReaderAuthPanel({ returnTo = '/library' }) {
@@ -11,6 +11,7 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [resending, setResending] = useState(false)
+  const [confirmationPending, setConfirmationPending] = useState(false)
 
   function getSafeReturnTo() {
     return returnTo.startsWith('/') && !returnTo.startsWith('//')
@@ -39,9 +40,16 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
 
         if (!data.session) {
           setMessage('Te enviamos un correo para confirmar tu cuenta. Al confirmarla volverás a este libro.')
+          setConfirmationPending(true)
           setMode('sign-in')
           setPassword('')
         }
+      } else if (mode === 'reset') {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        if (resetError) throw resetError
+        setMessage('Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo y spam.')
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -56,6 +64,8 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
       setError(
         mode === 'sign-up'
           ? `No se pudo crear la cuenta: ${message}`
+          : mode === 'reset'
+            ? `No se pudo enviar el enlace: ${message}`
           : `No se pudo iniciar sesión: ${message}`,
       )
     } finally {
@@ -94,11 +104,17 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
       <div className="reader-auth-icon"><BookOpen size={23} /></div>
       <p className="book-intro-eyebrow">TU RINCONCITO DE LECTURA</p>
       <h1 id="reader-auth-title">
-        {mode === 'sign-up' ? 'Crea tu cuenta de lector' : 'Inicia sesión'}
+        {mode === 'sign-up'
+          ? 'Crea tu cuenta de lector'
+          : mode === 'reset'
+            ? 'Restablece tu contraseña'
+            : 'Inicia sesión'}
       </h1>
       <p className="reader-auth-copy">
         {mode === 'sign-up'
           ? 'Crea una cuenta para guardar este libro en tu biblioteca y volver a leerlo.'
+          : mode === 'reset'
+            ? 'Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva.'
           : 'Entra con tu cuenta para guardar y volver a leer los libros que te compartan.'}
       </p>
       <form className="reader-auth-form" onSubmit={handleSubmit}>
@@ -112,29 +128,33 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
           required
           disabled={submitting}
         />
-        <label htmlFor="reader-password">Contraseña</label>
-        <div className="password-input-wrap">
-          <input
-            id="reader-password"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-            minLength={8}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            disabled={submitting}
-          />
-          <button
-            className="password-visibility-button"
-            type="button"
-            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            aria-pressed={showPassword}
-            onClick={() => setShowPassword((visible) => !visible)}
-            disabled={submitting}
-          >
-            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
-        </div>
+        {mode !== 'reset' && (
+          <>
+            <label htmlFor="reader-password">Contraseña</label>
+            <div className="password-input-wrap">
+              <input
+                id="reader-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+                minLength={8}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                disabled={submitting}
+              />
+              <button
+                className="password-visibility-button"
+                type="button"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((visible) => !visible)}
+                disabled={submitting}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </>
+        )}
         {error && <p className="error-message" role="alert">{error}</p>}
         {message && <p className="reader-auth-message" role="status">{message}</p>}
         <button className="book-intro-open" type="submit" disabled={submitting}>
@@ -142,9 +162,11 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
             ? 'Un momento…'
             : mode === 'sign-up'
               ? 'Crear cuenta y continuar'
+              : mode === 'reset'
+                ? 'Enviar enlace de recuperación'
               : 'Entrar a mi biblioteca'}
         </button>
-        {mode === 'sign-in' && (
+        {mode === 'sign-in' && confirmationPending && (
           <button
             className="reader-auth-resend"
             type="button"
@@ -154,9 +176,23 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
             {resending ? 'Reenviando…' : 'Reenviar correo de confirmación'}
           </button>
         )}
+        {mode === 'sign-in' && (
+          <button
+            className="reader-auth-resend"
+            type="button"
+            onClick={() => {
+              setMode('reset')
+              setError('')
+              setMessage('')
+            }}
+            disabled={submitting}
+          >
+            <KeyRound size={13} /> ¿Olvidaste tu contraseña?
+          </button>
+        )}
       </form>
       <p className="reader-auth-switch">
-        {mode === 'sign-up' ? '¿Ya tienes cuenta?' : '¿Es tu primera vez?'}
+        {mode === 'sign-up' ? '¿Ya tienes cuenta?' : '¿Ya tienes una cuenta?'}
         {' '}
         <button
           type="button"
@@ -170,6 +206,15 @@ function ReaderAuthPanel({ returnTo = '/library' }) {
           {mode === 'sign-up' ? 'Inicia sesión' : 'Crea una cuenta de lector'}
         </button>
       </p>
+      {mode === 'reset' && (
+        <button className="reader-auth-resend" type="button" onClick={() => {
+          setMode('sign-in')
+          setError('')
+          setMessage('')
+        }}>
+          Volver a iniciar sesión
+        </button>
+      )}
     </section>
   )
 }

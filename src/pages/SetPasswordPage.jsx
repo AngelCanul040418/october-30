@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 function SetPasswordPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isPasswordReset = location.pathname === '/reset-password'
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured)
   const [password, setPassword] = useState('')
@@ -27,7 +30,7 @@ function SetPasswordPage() {
 
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
-      if (sessionError) setError(`No se pudo comprobar la invitación: ${sessionError.message}`)
+      if (sessionError) setError(`No se pudo comprobar el enlace: ${sessionError.message}`)
       setUser(data.session?.user ?? null)
       setCheckingSession(false)
     })
@@ -74,7 +77,7 @@ function SetPasswordPage() {
       <SiteHeader note="Activar cuenta" homeHref="/" />
       <main className="shared-reader-main">
         {checkingSession ? (
-          <div className="page-loading session-loading"><span className="spinner" /> Comprobando invitación...</div>
+          <div className="page-loading session-loading"><span className="spinner" /> Comprobando enlace...</div>
         ) : !isSupabaseConfigured ? (
           <section className="empty-state">
             <h1>Cuenta no configurada</h1>
@@ -82,17 +85,19 @@ function SetPasswordPage() {
           </section>
         ) : !user ? (
           <section className="empty-state">
-            <h1>La invitación no está activa</h1>
-            <p>Abre el enlace más reciente que recibiste por correo o pide una nueva invitación al super administrador.</p>
+            <h1>El enlace no está activo</h1>
+            <p>Abre el enlace más reciente que recibiste por correo y vuelve a intentarlo.</p>
             <a className="primary-button" href="/">Ir al inicio de sesión</a>
           </section>
         ) : (
           <section className="reader-auth-card" aria-labelledby="set-password-title">
             <div className="reader-auth-icon"><KeyRound size={23} /></div>
             <p className="book-intro-eyebrow">ACTIVA TU CUENTA</p>
-            <h1 id="set-password-title">Crea tu contraseña</h1>
+            <h1 id="set-password-title">{isPasswordReset ? 'Restablece tu contraseña' : 'Crea tu contraseña'}</h1>
             <p className="reader-auth-copy">
-              Establece una contraseña para entrar con {user.email}.
+              {isPasswordReset
+                ? `Crea una contraseña nueva para entrar con ${user.email}.`
+                : `Establece una contraseña para entrar con ${user.email}.`}
             </p>
             <form className="reader-auth-form" onSubmit={savePassword}>
               <label htmlFor="new-password">Contraseña nueva</label>
