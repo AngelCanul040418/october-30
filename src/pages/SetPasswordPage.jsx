@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
@@ -87,7 +86,7 @@ function SetPasswordPage() {
           <section className="empty-state">
             <h1>El enlace no está activo</h1>
             <p>Abre el enlace más reciente que recibiste por correo y vuelve a intentarlo.</p>
-            <a className="primary-button" href="/">Ir al inicio de sesión</a>
+            <Link className="primary-button" to="/">Ir al inicio de sesión</Link>
           </section>
         ) : (
           <section className="reader-auth-card" aria-labelledby="set-password-title">

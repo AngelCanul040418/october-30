@@ -1,33 +1,56 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const baseCorsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+function getCorsHeaders(request: Request, appUrl: string | undefined): Record<string, string> {
+  const allowedOrigins = new Set([
+    appUrl?.replace(/\/$/, ''),
+    'https://machape.site',
+    'https://october-30-three.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ].filter(Boolean))
+  const origin = request.headers.get('Origin')
+  const headers: Record<string, string> = { ...baseCorsHeaders }
+  if (origin && allowedOrigins.has(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+    headers.Vary = 'Origin'
+  }
+  return headers
+}
+
 const allowedRoles = new Set(['super_admin', 'author', 'reader'])
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200, headers = baseCorsHeaders) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json' },
   })
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-  if (request.method !== 'POST') return jsonResponse({ error: 'Método no permitido.' }, 405)
-
-  const authorization = request.headers.get('Authorization')
-  const token = authorization?.replace(/^Bearer\s+/i, '')
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   const appUrl = Deno.env.get('APP_URL')
+  const corsHeaders = getCorsHeaders(request, appUrl)
+  const respond = (body: unknown, status = 200) => jsonResponse(body, status, corsHeaders)
+
+  if (request.method === 'OPTIONS') {
+    return corsHeaders['Access-Control-Allow-Origin']
+      ? new Response('ok', { headers: corsHeaders })
+      : new Response('Origen no permitido.', { status: 403 })
+  }
+  if (request.method !== 'POST') return respond({ error: 'Método no permitido.' }, 405)
+
+  const authorization = request.headers.get('Authorization')
+  const token = authorization?.replace(/^Bearer\s+/i, '')
 
   if (!token || !supabaseUrl || !anonKey || !serviceRoleKey || !appUrl) {
-    return jsonResponse({ error: 'La función no está configurada correctamente.' }, 500)
+    return respond({ error: 'La función no está configurada correctamente.' }, 500)
   }
 
   const authClient = createClient(supabaseUrl, anonKey, {
@@ -40,7 +63,7 @@ Deno.serve(async (request) => {
 
   try {
     const { data: authData, error: authError } = await authClient.auth.getUser(token)
-    if (authError || !authData.user) return jsonResponse({ error: 'La sesión no es válida.' }, 401)
+    if (authError || !authData.user) return respond({ error: 'La sesión no es válida.' }, 401)
 
     const { data: callerProfile, error: callerProfileError } = await serviceClient
       .from('user_profiles')
@@ -49,7 +72,7 @@ Deno.serve(async (request) => {
       .maybeSingle()
     if (callerProfileError) throw callerProfileError
     if (callerProfile?.role !== 'super_admin' || !callerProfile.is_active) {
-      return jsonResponse({ error: 'Solo un super administrador puede gestionar usuarios.' }, 403)
+      return respond({ error: 'Solo un super administrador puede gestionar usuarios.' }, 403)
     }
 
     const body = await request.json()
@@ -71,7 +94,7 @@ Deno.serve(async (request) => {
       const rolesByUser = new Map((profiles ?? []).map((profile) => [profile.user_id, profile.role]))
       const activeByUser = new Map((profiles ?? []).map((profile) => [profile.user_id, profile.is_active]))
 
-      return jsonResponse({
+      return respond({
         users: users.map((user) => ({
           id: user.id,
           email: user.email ?? '',
@@ -87,9 +110,9 @@ Deno.serve(async (request) => {
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
       const role = body.role
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return jsonResponse({ error: 'Escribe un correo electrónico válido.' }, 400)
+        return respond({ error: 'Escribe un correo electrónico válido.' }, 400)
       }
-      if (!allowedRoles.has(role)) return jsonResponse({ error: 'El rol seleccionado no es válido.' }, 400)
+      if (!allowedRoles.has(role)) return respond({ error: 'El rol seleccionado no es válido.' }, 400)
 
       const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${appUrl.replace(/\/$/, '')}/set-password`,
@@ -102,22 +125,22 @@ Deno.serve(async (request) => {
       if (profileError) {
         throw new Error(`La invitación se envió, pero no se pudo asignar el rol: ${profileError.message}`)
       }
-      return jsonResponse({ success: true })
+      return respond({ success: true })
     }
 
     const targetUserId = typeof body.user_id === 'string' ? body.user_id : ''
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
-      return jsonResponse({ error: 'La cuenta seleccionada no es válida.' }, 400)
+      return respond({ error: 'La cuenta seleccionada no es válida.' }, 400)
     }
 
     if (action === 'delete') {
       if (targetUserId === authData.user.id) {
-        return jsonResponse({ error: 'No puedes eliminar tu propia cuenta.' }, 400)
+        return respond({ error: 'No puedes eliminar tu propia cuenta.' }, 400)
       }
 
       const { data: targetUser, error: targetUserError } = await serviceClient.auth.admin.getUserById(targetUserId)
       if (targetUserError) throw targetUserError
-      if (!targetUser.user) return jsonResponse({ error: 'No encontramos esa cuenta.' }, 404)
+      if (!targetUser.user) return respond({ error: 'No encontramos esa cuenta.' }, 404)
 
       let { data: targetProfile, error: targetProfileError } = await serviceClient
         .from('user_profiles')
@@ -144,7 +167,7 @@ Deno.serve(async (request) => {
           }
         }
         if (!hasActiveSuperAdmin) {
-          return jsonResponse({ error: 'Debe permanecer al menos un super administrador activo.' }, 400)
+          return respond({ error: 'Debe permanecer al menos un super administrador activo.' }, 400)
         }
       }
 
@@ -164,7 +187,7 @@ Deno.serve(async (request) => {
 
       const { error: deleteError } = await serviceClient.auth.admin.deleteUser(targetUserId)
       if (deleteError) throw deleteError
-      return jsonResponse({ success: true })
+      return respond({ success: true })
     }
 
     const { data: targetProfile, error: targetProfileError } = await serviceClient
@@ -181,7 +204,7 @@ Deno.serve(async (request) => {
       targetProfile = { role: action === 'set-role' ? body.role : 'reader' }
     }
     if (!targetProfile && action !== 'set-active' && action !== 'set-role') {
-      return jsonResponse({ error: 'No encontramos el perfil de esa cuenta.' }, 404)
+      return respond({ error: 'No encontramos el perfil de esa cuenta.' }, 404)
     }
 
     const mustKeepSuperAdmin = targetProfile.role === 'super_admin'
@@ -191,7 +214,7 @@ Deno.serve(async (request) => {
       )
     if (mustKeepSuperAdmin) {
       if (targetUserId === authData.user.id) {
-        return jsonResponse({ error: 'No puedes quitarte el rol o desactivar tu propia cuenta.' }, 400)
+        return respond({ error: 'No puedes quitarte el rol o desactivar tu propia cuenta.' }, 400)
       }
       const { data: otherSuperAdmins, error: adminsError } = await serviceClient
         .from('user_profiles')
@@ -210,25 +233,25 @@ Deno.serve(async (request) => {
         }
       }
       if (!hasActiveSuperAdmin) {
-        return jsonResponse({ error: 'Debe permanecer al menos un super administrador activo.' }, 400)
+        return respond({ error: 'Debe permanecer al menos un super administrador activo.' }, 400)
       }
     }
 
     if (action === 'set-role') {
       if (!allowedRoles.has(body.role)) {
-        return jsonResponse({ error: 'El rol seleccionado no es válido.' }, 400)
+        return respond({ error: 'El rol seleccionado no es válido.' }, 400)
       }
       const { error } = await serviceClient
         .from('user_profiles')
         .update({ role: body.role })
         .eq('user_id', targetUserId)
       if (error) throw error
-      return jsonResponse({ success: true })
+      return respond({ success: true })
     }
 
     if (action === 'set-active') {
       if (typeof body.is_active !== 'boolean') {
-        return jsonResponse({ error: 'El estado de la cuenta no es válido.' }, 400)
+        return respond({ error: 'El estado de la cuenta no es válido.' }, 400)
       }
       if (body.is_active) {
         const { error: authError } = await serviceClient.auth.admin.updateUserById(targetUserId, {
@@ -255,12 +278,12 @@ Deno.serve(async (request) => {
           throw new Error(`Se revocó el acceso a los libros, pero no se pudo bloquear el inicio de sesión: ${authError.message}`)
         }
       }
-      return jsonResponse({ success: true })
+      return respond({ success: true })
     }
 
-    return jsonResponse({ error: 'La operación solicitada no es válida.' }, 400)
+    return respond({ error: 'La operación solicitada no es válida.' }, 400)
   } catch (error) {
     console.error('Error gestionando usuarios:', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Ocurrió un error inesperado.' }, 500)
+    return respond({ error: error instanceof Error ? error.message : 'Ocurrió un error inesperado.' }, 500)
   }
 })

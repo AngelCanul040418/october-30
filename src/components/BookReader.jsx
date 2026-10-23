@@ -295,6 +295,12 @@ function BookReader({
         </button>
       </div>
 
+      <p className="visually-hidden" aria-live="polite" aria-atomic="true">
+        {pageCount
+          ? `Página ${pageNumber} de ${pageCount}${isTurning ? ', pasando página' : ''}.`
+          : 'Preparando el documento.'}
+      </p>
+
       <div className="reader-controls">
         <div className="page-counter">
           <span className="current-page">
@@ -314,6 +320,7 @@ function BookReader({
           value={pageNumber}
           onChange={(event) => flipBookRef.current?.goToPage(Number(event.target.value))}
           aria-label="Seleccionar página"
+          aria-valuetext={pageCount ? `Página ${pageNumber} de ${pageCount}` : 'Preparando el documento'}
           style={{ '--progress': `${pageCount > 1 ? ((pageNumber - 1) / (pageCount - 1)) * 100 : 0}%` }}
         />
         <div className="control-buttons">

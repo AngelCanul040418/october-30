@@ -11,13 +11,14 @@ import {
   Pencil,
   Plus,
   QrCode,
+  RefreshCw,
   ShieldCheck,
   Trash2,
   Upload,
   X,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import BookReader from '../components/BookReader.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import {
@@ -25,6 +26,9 @@ import {
   isSupabaseConfigured,
   supabase,
 } from '../lib/supabase.js'
+import { useDialogFocus } from '../lib/useDialogFocus.js'
+import { validatePdfFile } from '../lib/pdfValidation.js'
+import { useActiveSession } from '../lib/useActiveSession.js'
 
 const bookIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const emptyMetadata = { title: '', subtitle: '', description: '', author: '' }
@@ -75,6 +79,18 @@ function getCoverExtension(file) {
   if (file.type === 'image/png') return 'png'
   if (file.type === 'image/webp') return 'webp'
   return 'jpg'
+}
+
+async function canDecodeImage(file) {
+  const previewUrl = URL.createObjectURL(file)
+  try {
+    const image = new Image()
+    image.src = previewUrl
+    await image.decode()
+    return image.naturalWidth > 0 && image.naturalHeight > 0
+  } finally {
+    URL.revokeObjectURL(previewUrl)
+  }
 }
 
 async function downloadQrPng(svgElement, filename) {
@@ -152,15 +168,24 @@ function AdminPage({ audience = 'super_admin' }) {
   const [qrBook, setQrBook] = useState(null)
   const [downloadingQr, setDownloadingQr] = useState(false)
   const [qrDownloadError, setQrDownloadError] = useState('')
+  const [orphanFiles, setOrphanFiles] = useState(null)
+  const [scanningOrphans, setScanningOrphans] = useState(false)
+  const [deletingOrphans, setDeletingOrphans] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const uploadRef = useRef(null)
   const coverUploadRef = useRef(null)
   const qrCodeRef = useRef(null)
+  const editDialogRef = useRef(null)
+  const qrDialogRef = useRef(null)
   const currentRoleCheck = roleCheck?.userId === user?.id ? roleCheck : null
   const checkingRole = Boolean(user && !currentRoleCheck)
   const isSuperAdmin = currentRoleCheck?.role === 'super_admin'
   const isAuthor = currentRoleCheck?.role === 'author'
   const canManageBooks = isSuperAdmin || isAuthor
+
+  useActiveSession(user, () => {
+    setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
+  })
 
   function openQr(book) {
     setQrDownloadError('')
@@ -171,19 +196,10 @@ function AdminPage({ audience = 'super_admin' }) {
     if (coverPreview) URL.revokeObjectURL(coverPreview)
   }, [coverPreview])
 
-  useEffect(() => {
-    if (!editingBook && !qrBook) return undefined
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape' && !saving) {
-        setEditingBook(null)
-        setQrBook(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editingBook, qrBook, saving])
+  useDialogFocus(editDialogRef, Boolean(editingBook), () => {
+    if (!saving) setEditingBook(null)
+  })
+  useDialogFocus(qrDialogRef, Boolean(qrBook), () => setQrBook(null))
 
   const fetchBooks = useCallback(async () => {
     if (!supabase) return []
@@ -384,22 +400,19 @@ function AdminPage({ audience = 'super_admin' }) {
     }
   }
 
-  function selectFile(nextFile) {
+  async function selectFile(nextFile) {
     if (!nextFile) return
-    if (nextFile.size > 50 * 1024 * 1024) {
-      setError('Este PDF supera el límite de 50 MB. Elige un archivo más pequeño.')
-      return
-    }
-    if (nextFile.type !== 'application/pdf' && !nextFile.name.toLowerCase().endsWith('.pdf')) {
-      setError('Ese archivo no parece ser un PDF. Elige un archivo .pdf para continuar.')
-      return
-    }
 
-    setFile(nextFile)
-    setBookTitle((currentTitle) => currentTitle.trim() || nextFile.name.replace(/\.pdf$/i, '').trim())
-    setShareUrl('')
-    setEditingBook(null)
-    setError('')
+    try {
+      await validatePdfFile(nextFile)
+      setFile(nextFile)
+      setBookTitle((currentTitle) => currentTitle.trim() || nextFile.name.replace(/\.pdf$/i, '').trim())
+      setShareUrl('')
+      setEditingBook(null)
+      setError('')
+    } catch (validationError) {
+      setError(`No se pudo validar el PDF: ${validationError.message}`)
+    }
   }
 
   function handleFileChange(event) {
@@ -407,7 +420,7 @@ function AdminPage({ audience = 'super_admin' }) {
     event.target.value = ''
   }
 
-  function selectCover(nextFile) {
+  async function selectCover(nextFile) {
     if (!nextFile) return
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(nextFile.type)) {
       setError('La portada debe ser una imagen JPG, PNG o WebP.')
@@ -418,10 +431,18 @@ function AdminPage({ audience = 'super_admin' }) {
       return
     }
 
-    setCoverFile(nextFile)
-    setCoverPreview(URL.createObjectURL(nextFile))
-    setCoverRemoved(false)
-    setError('')
+    try {
+      if (!(await canDecodeImage(nextFile))) {
+        setError('La portada no contiene una imagen válida. Elige otro archivo.')
+        return
+      }
+      setCoverFile(nextFile)
+      setCoverPreview(URL.createObjectURL(nextFile))
+      setCoverRemoved(false)
+      setError('')
+    } catch (validationError) {
+      setError(`No se pudo validar la portada: ${validationError.message}`)
+    }
   }
 
   function handleCoverChange(event) {
@@ -698,6 +719,7 @@ function AdminPage({ audience = 'super_admin' }) {
       setError(`No se pudo mostrar la confirmación de eliminación: ${alertError.message}`)
       return
     }
+
     if (!confirmation.isConfirmed) return
 
     setError('')
@@ -735,6 +757,76 @@ function AdminPage({ audience = 'super_admin' }) {
       } catch (alertError) {
         setError(`El libro se eliminó, pero no se pudo mostrar la confirmación: ${alertError.message}`)
       }
+    }
+  }
+
+  async function scanOrphanFiles() {
+    if (!supabase || !isSuperAdmin || scanningOrphans) return
+    setScanningOrphans(true)
+    setError('')
+    try {
+      const storageFiles = []
+      let offset = 0
+      let batch
+      do {
+        const { data, error: storageError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .list('', { limit: 100, offset, sortBy: { column: 'name', order: 'asc' } })
+        if (storageError) throw storageError
+        batch = data ?? []
+        storageFiles.push(...batch)
+        offset += batch.length
+      } while (batch.length === 100)
+
+      const { data: metadata, error: metadataError } = await supabase
+        .from('books')
+        .select('file_path, cover_path')
+      if (metadataError) throw metadataError
+
+      const referencedPaths = new Set(
+        (metadata ?? []).flatMap((book) => [book.file_path, book.cover_path]).filter(Boolean),
+      )
+      setOrphanFiles(storageFiles
+        .filter((entry) => entry.id && entry.name && !referencedPaths.has(entry.name))
+        .map((entry) => entry.name))
+    } catch (scanError) {
+      setError(`No se pudieron revisar los archivos: ${scanError.message}`)
+    } finally {
+      setScanningOrphans(false)
+    }
+  }
+
+  async function deleteOrphanFiles() {
+    if (!supabase || !orphanFiles?.length || deletingOrphans) return
+    let confirmation
+    try {
+      confirmation = await showAdminAlert({
+        icon: 'warning',
+        title: '¿Eliminar archivos huérfanos?',
+        text: `Se eliminarán ${orphanFiles.length} archivo(s) que no tienen un libro asociado.`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar archivos',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#b42318',
+        reverseButtons: true,
+        focusCancel: true,
+      })
+    } catch (alertError) {
+      setError(`No se pudo mostrar la confirmación: ${alertError.message}`)
+      return
+    }
+    if (!confirmation.isConfirmed) return
+
+    setDeletingOrphans(true)
+    setError('')
+    try {
+      const { error: deleteError } = await supabase.storage.from(BOOKS_BUCKET).remove(orphanFiles)
+      if (deleteError) throw deleteError
+      setOrphanFiles([])
+    } catch (deleteError) {
+      setError(`No se pudieron eliminar los archivos huérfanos: ${deleteError.message}`)
+    } finally {
+      setDeletingOrphans(false)
     }
   }
 
@@ -896,10 +988,10 @@ function AdminPage({ audience = 'super_admin' }) {
       />
       <main className="main-content">
         {user && audience === 'super_admin' && (
-          <a className="admin-dashboard-backlink" href="/">
+          <Link className="admin-dashboard-backlink" to="/">
             <ArrowLeft size={16} />
             Volver al panel del super administrador
-          </a>
+          </Link>
         )}
         {(!user || activeView === 'create') && (
           <section className="intro">
@@ -977,7 +1069,7 @@ function AdminPage({ audience = 'super_admin' }) {
             <div className="upload-illustration"><FileText size={27} strokeWidth={1.7} /></div>
             <h2>Esta cuenta no puede publicar libros</h2>
             <p className="upload-description">Puedes acceder a tu biblioteca de lector y a los libros que hayas guardado.</p>
-            <a className="primary-button" href="/library">Ir a mi biblioteca</a>
+            <Link className="primary-button" to="/library">Ir a mi biblioteca</Link>
           </section>
         ) : (
           <>
@@ -995,10 +1087,20 @@ function AdminPage({ audience = 'super_admin' }) {
                   </div>
                   <div className="dashboard-heading-actions">
                     {isSuperAdmin && (
-                      <a className="secondary-button" href="/users">
-                        <ShieldCheck size={16} />
-                        Usuarios y roles
-                      </a>
+                      <>
+                        <button
+                          className="secondary-button"
+                          onClick={scanOrphanFiles}
+                          disabled={scanningOrphans}
+                        >
+                          <RefreshCw size={16} />
+                          {scanningOrphans ? 'Revisando…' : 'Revisar archivos'}
+                        </button>
+                        <Link className="secondary-button" to="/users">
+                          <ShieldCheck size={16} />
+                          Usuarios y roles
+                        </Link>
+                      </>
                     )}
                     <button className="primary-button" onClick={startNewBook}>
                       <Plus size={17} />
@@ -1099,6 +1201,31 @@ function AdminPage({ audience = 'super_admin' }) {
                 <p className="admin-notice dashboard-notice" role="note">
                   Los enlaces permiten leer el libro a quien los tenga. No compartas enlaces a documentos confidenciales.
                 </p>
+                {isSuperAdmin && orphanFiles && (
+                  <section className="admin-notice orphan-files-notice" aria-live="polite">
+                    <strong>Revisión de archivos</strong>
+                    {orphanFiles.length ? (
+                      <>
+                        <p>
+                          Encontramos {orphanFiles.length} archivo(s) sin un libro asociado. Revisa la lista antes de eliminarlos.
+                        </p>
+                        <ul className="orphan-files-list">
+                          {orphanFiles.map((fileName) => <li key={fileName}>{fileName}</li>)}
+                        </ul>
+                        <button
+                          className="secondary-button catalog-delete"
+                          onClick={deleteOrphanFiles}
+                          disabled={deletingOrphans}
+                        >
+                          <Trash2 size={16} />
+                          {deletingOrphans ? 'Eliminando…' : 'Eliminar archivos encontrados'}
+                        </button>
+                      </>
+                    ) : (
+                      <p>No encontramos archivos sin un libro asociado.</p>
+                    )}
+                  </section>
+                )}
               </>
             ) : (
               <>
@@ -1212,6 +1339,7 @@ function AdminPage({ audience = 'super_admin' }) {
                 }}
               >
                 <form
+                  ref={editDialogRef}
                   className="metadata-editor edit-book-modal"
                   role="dialog"
                   aria-modal="true"
@@ -1259,6 +1387,7 @@ function AdminPage({ audience = 'super_admin' }) {
                 }}
               >
                 <section
+                  ref={qrDialogRef}
                   className="qr-modal"
                   role="dialog"
                   aria-modal="true"

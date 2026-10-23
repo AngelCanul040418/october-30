@@ -1,0 +1,3 @@
+-- The existing Supabase schema was created from supabase/setup.sql before
+-- migration history was enabled. This marker records that starting point.
+-- Do not add schema changes to this migration.

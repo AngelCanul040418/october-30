@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Power, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
+import { useActiveSession } from '../lib/useActiveSession.js'
 
 const roleLabels = {
   super_admin: 'Super administrador',
@@ -28,6 +30,10 @@ function UserManagementPage() {
   const [inviteRole, setInviteRole] = useState('author')
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState('')
+
+  useActiveSession(user, () => {
+    setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
+  })
 
   const callManagementFunction = useCallback(async (payload) => {
     const { data, error: functionError } = await supabase.functions.invoke('manage-users', {
@@ -331,20 +337,20 @@ function UserManagementPage() {
           <section className="empty-state">
             <h1>Inicia sesión para continuar</h1>
             <p>La gestión de usuarios solo está disponible para el super administrador.</p>
-            <a className="primary-button" href="/">Ir al acceso</a>
+            <Link className="primary-button" to="/">Ir al acceso</Link>
           </section>
         ) : role !== 'super_admin' ? (
           <section className="empty-state">
             <h1>Acceso restringido</h1>
             <p>Solo el super administrador puede gestionar cuentas y asignar roles.</p>
-            <a className="primary-button" href="/">Volver al panel</a>
+            <Link className="primary-button" to="/">Volver al panel</Link>
           </section>
         ) : (
           <>
-            <a className="user-management-backlink" href="/">
+            <Link className="user-management-backlink" to="/">
               <ArrowLeft size={16} />
               Volver al panel
-            </a>
+            </Link>
             <section className="user-management-heading">
               <div className="reader-auth-icon"><Users size={22} /></div>
               <p className="eyebrow">CONTROL DE ACCESO</p>

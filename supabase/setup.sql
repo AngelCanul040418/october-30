@@ -44,6 +44,24 @@ alter table public.books
   add column if not exists original_filename text not null default '',
   add column if not exists cover_path text;
 
+create or replace function public.set_books_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+revoke all on function public.set_books_updated_at() from public, anon, authenticated;
+
+drop trigger if exists books_set_updated_at on public.books;
+create trigger books_set_updated_at
+before update on public.books
+for each row execute procedure public.set_books_updated_at();
+
 create or replace function public.slugify_book_title(value text)
 returns text
 language sql

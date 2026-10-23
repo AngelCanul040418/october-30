@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
-import { useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import BookReader from '../components/BookReader.jsx'
 import ReaderAuthPanel from '../components/ReaderAuthPanel.jsx'
 import { BOOKS_BUCKET, supabase } from '../lib/supabase.js'
+import { useActiveSession } from '../lib/useActiveSession.js'
 
 const bookIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const bookSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -29,6 +30,9 @@ function SharedBookPage() {
   const [metadataResult, setMetadataResult] = useState(null)
   const [metadataError, setMetadataError] = useState(null)
   const [showIntroDescription, setShowIntroDescription] = useState(true)
+  useActiveSession(user, () => {
+    setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
+  })
   const linkTitle = new URLSearchParams(location.search).get('title')?.trim() || 'Libro compartido'
   const isLegacyId = bookIdPattern.test(bookSlug ?? '')
   const isValidSlug = bookSlugPattern.test(bookSlug ?? '') && (bookSlug?.length ?? 0) <= 160
@@ -245,7 +249,7 @@ function SharedBookPage() {
   return (
     <div className="app-shell reader-theme">
       <main className="shared-reader-main">
-        {user && <a className="reader-library-backlink" href="/library">← Mi biblioteca</a>}
+        {user && <Link className="reader-library-backlink" to="/library">← Mi biblioteca</Link>}
         {!supabase ? (
           <section className="empty-state">
             <h1>Lector no configurado</h1>
@@ -363,7 +367,7 @@ function SharedBookPage() {
           <section className="empty-state">
             <h1>No pudimos abrir este libro</h1>
             <p>{error}</p>
-            <a href="/library">Ir a mi biblioteca</a>
+            <Link to="/library">Ir a mi biblioteca</Link>
           </section>
         ) : (
           <section className="empty-state">

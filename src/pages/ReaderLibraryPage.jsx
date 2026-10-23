@@ -4,6 +4,7 @@ import { Link, Navigate } from 'react-router-dom'
 import ReaderAuthPanel from '../components/ReaderAuthPanel.jsx'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { BOOKS_BUCKET, isSupabaseConfigured, supabase } from '../lib/supabase.js'
+import { useActiveSession } from '../lib/useActiveSession.js'
 
 const libraryFields = 'added_at,book:books(id,title,subtitle,author,slug,cover_path)'
 
@@ -24,6 +25,10 @@ function ReaderLibraryPage() {
   const [loadingBooks, setLoadingBooks] = useState(false)
   const [removingBookId, setRemovingBookId] = useState('')
   const [error, setError] = useState('')
+
+  useActiveSession(user, () => {
+    setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
+  })
 
   const loadBooks = useCallback(async (isActive = () => true) => {
     if (!supabase || !user) return
@@ -163,6 +168,7 @@ function ReaderLibraryPage() {
       const { error: deleteError } = await supabase
         .from('user_books')
         .delete()
+        .eq('user_id', user.id)
         .eq('book_id', book.id)
       if (deleteError) throw deleteError
       setBooks((currentBooks) => currentBooks.filter((entry) => entry.book.id !== book.id))

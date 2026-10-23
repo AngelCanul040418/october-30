@@ -131,6 +131,26 @@
   line-height: 1.55;
 }
 
+.orphan-files-notice {
+  margin-top: 16px;
+}
+
+.orphan-files-notice strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.orphan-files-notice p {
+  margin: 0 0 10px;
+}
+
+.orphan-files-list {
+  max-height: 160px;
+  margin: 0 0 14px;
+  padding-left: 20px;
+  overflow-y: auto;
+}
+
 .upload-card {
   min-height: 356px;
   padding: 36px 24px 27px;

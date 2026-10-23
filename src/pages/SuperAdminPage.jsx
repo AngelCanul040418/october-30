@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, Library, ShieldCheck, Users } from 'lucide-react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
+import { useActiveSession } from '../lib/useActiveSession.js'
 
 function SuperAdminPage() {
   const [user, setUser] = useState(null)
@@ -11,6 +12,10 @@ function SuperAdminPage() {
   const [stats, setStats] = useState({ users: 0, authors: 0, books: 0 })
   const [loadingStats, setLoadingStats] = useState(false)
   const [error, setError] = useState('')
+
+  useActiveSession(user, () => {
+    setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
+  })
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -133,7 +138,7 @@ function SuperAdminPage() {
           <section className="empty-state">
             <h1>Inicia sesión para continuar</h1>
             <p>Este espacio está reservado para el super administrador.</p>
-            <a className="primary-button" href="/author">Ir al acceso</a>
+            <Link className="primary-button" to="/author">Ir al acceso</Link>
           </section>
         ) : !role ? (
           <div className="page-loading session-loading"><span className="spinner" /> Comprobando rol...</div>
@@ -164,30 +169,30 @@ function SuperAdminPage() {
               </div>
             </section>
             <section className="super-admin-actions" aria-label="Acciones administrativas">
-              <a className="super-admin-action-card" href="/users">
+              <Link className="super-admin-action-card" to="/users">
                 <span className="super-admin-action-icon"><Users size={22} /></span>
                 <span>
                   <strong>Usuarios y roles</strong>
                   <small>Invita autores, crea lectores y administra permisos.</small>
                 </span>
                 <span className="super-admin-action-arrow">→</span>
-              </a>
-              <a className="super-admin-action-card" href="/books">
+              </Link>
+              <Link className="super-admin-action-card" to="/books">
                 <span className="super-admin-action-icon"><Library size={22} /></span>
                 <span>
                   <strong>Biblioteca completa</strong>
                   <small>Consulta y administra todos los libros de la plataforma.</small>
                 </span>
                 <span className="super-admin-action-arrow">→</span>
-              </a>
-              <a className="super-admin-action-card" href="/author">
+              </Link>
+              <Link className="super-admin-action-card" to="/author">
                 <span className="super-admin-action-icon"><BookOpen size={22} /></span>
                 <span>
                   <strong>Vista de autor</strong>
                   <small>Abre el espacio de publicación para revisar su experiencia.</small>
                 </span>
                 <span className="super-admin-action-arrow">→</span>
-              </a>
+              </Link>
             </section>
           </>
         ) : role === 'author' ? (

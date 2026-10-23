@@ -132,6 +132,7 @@ const PdfBook = forwardRef(function PdfBook(
   const pageNodesRef = useRef([])
   const bookRef = useRef(null)
   const flipInstanceRef = useRef(null)
+  const pdfDocumentRef = useRef(null)
   const pageIndexRef = useRef(0)
   const orientationRef = useRef('portrait')
   const busyRef = useRef(false)
@@ -223,8 +224,11 @@ const PdfBook = forwardRef(function PdfBook(
   useEffect(() => {
     let active = true
     let loadingTask
+    const previousDocument = pdfDocumentRef.current
     const assetCache = cacheRef.current
     const pageAssets = pageAssetsRef.current
+    pdfDocumentRef.current = null
+    previousDocument?.destroy().catch(() => {})
 
     async function loadPdf() {
       try {
@@ -244,6 +248,7 @@ const PdfBook = forwardRef(function PdfBook(
         }
 
         setPdf(loadedDocument)
+        pdfDocumentRef.current = loadedDocument
         setPageCount(loadedDocument.numPages)
         pageAssetsRef.current.clear()
         callbacksRef.current.onLoadSuccess({
@@ -270,6 +275,9 @@ const PdfBook = forwardRef(function PdfBook(
     return () => {
       active = false
       if (loadingTask) loadingTask.destroy().catch(() => {})
+      const loadedDocument = pdfDocumentRef.current
+      pdfDocumentRef.current = null
+      if (loadedDocument) loadedDocument.destroy().catch(() => {})
       pageAssets.clear()
       for (const assetPromise of assetCache.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})

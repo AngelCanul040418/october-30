@@ -27,7 +27,7 @@ npm run dev
 ```
 
 1. Copia `.env.example` como `.env.local` y coloca la URL de tu proyecto Supabase y su clave `publishable`.
-2. Despliega el cliente actualizado y ejecuta el SQL de [`supabase/setup.sql`](./supabase/setup.sql) desde el SQL Editor de Supabase. El script prepara los perfiles y bibliotecas, actualiza los roles anteriores y mantiene el bucket `books` privado. **Despliega el cliente antes de ejecutar el SQL** para que los enlaces firmados y los nuevos permisos estén disponibles juntos.
+2. Despliega el cliente actualizado y aplica las migraciones formales con Supabase CLI. El archivo [`supabase/setup.sql`](./supabase/setup.sql) se conserva únicamente como referencia histórica; no lo ejecutes junto con las migraciones. Las migraciones preparan los perfiles y bibliotecas, mantienen el bucket `books` privado y actualizan automáticamente `updated_at` cuando cambia un libro. **Despliega el cliente antes de aplicar cambios de esquema** para que los enlaces firmados y los nuevos permisos estén disponibles juntos.
 3. Los perfiles que tenían el rol `admin` se migran a `super_admin`. Para asignar ese rol manualmente a la cuenta inicial, usa el UUID de la cuenta desde Authentication > Users:
 
    ```sql
@@ -46,6 +46,53 @@ npm run dev
    La función usa las variables `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` del entorno de Supabase; la clave de servicio nunca debe agregarse a Vite ni al frontend.
 5. En Supabase Auth, habilita el proveedor Email y permite el registro público para que los lectores puedan crear su cuenta desde un enlace compartido. Añade `https://tu-dominio-de-vercel.app/**` y `http://localhost:5173/**` a la lista de Redirect URLs para que, tras confirmar su correo, vuelvan al libro que estaban abriendo. Los nuevos registros reciben automáticamente el rol `reader`; los autores y super administradores se crean mediante invitación desde `/users`.
 6. Ejecuta `npm run dev` e inicia sesión con la cuenta de super administrador.
+
+### Pruebas autenticadas locales
+
+Las pruebas autenticadas de Playwright no usan credenciales incluidas en el repositorio.
+Para ejecutarlas, define temporalmente estas variables en la terminal o en un archivo
+local ignorado por Git:
+
+```powershell
+$env:E2E_READER_EMAIL = 'lector-de-prueba@example.com'
+$env:E2E_READER_PASSWORD = 'una-contraseña-local'
+$env:E2E_BOOK_SLUG = 'slug-de-un-libro-ya-guardado'
+$env:E2E_SUPER_ADMIN_EMAIL = 'admin-de-prueba@example.com'
+$env:E2E_SUPER_ADMIN_PASSWORD = 'otra-contraseña-local'
+$env:E2E_AUTHOR_EMAIL = 'autor-de-prueba@example.com'
+$env:E2E_AUTHOR_PASSWORD = 'otra-contraseña-local'
+npm run test:e2e
+```
+
+Las cuentas deben estar confirmadas en Supabase y tener el rol correspondiente.
+Estas pruebas verifican inicio de sesión, navegación y, si se proporciona
+`E2E_BOOK_SLUG`, la apertura y los controles de un libro que el lector ya tenga
+guardado. No crean, editan ni eliminan libros. Borra las variables de la sesión
+al terminar:
+
+```powershell
+Remove-Item Env:E2E_READER_EMAIL, Env:E2E_READER_PASSWORD, Env:E2E_BOOK_SLUG
+Remove-Item Env:E2E_SUPER_ADMIN_EMAIL, Env:E2E_SUPER_ADMIN_PASSWORD
+Remove-Item Env:E2E_AUTHOR_EMAIL, Env:E2E_AUTHOR_PASSWORD
+```
+
+### Migraciones de Supabase
+
+El esquema inicial se creó antes de habilitar el historial de migraciones y se conserva en
+[`supabase/setup.sql`](./supabase/setup.sql) como referencia de instalación. El archivo
+[`supabase/migrations/20261023041831_baseline_existing_schema.sql`](./supabase/migrations/20261023041831_baseline_existing_schema.sql)
+marca ese punto de partida sin volver a ejecutar el esquema existente. Los cambios nuevos
+deben añadirse como migraciones incrementales. Para una reconstrucción limpia, las
+migraciones posteriores a la línea base se organizan por responsabilidad: tablas,
+perfiles y biblioteca, funciones de autenticación, RLS, Storage, funciones de
+libros compartidos, normalización de metadatos y el trigger `updated_at`.
+
+El historial remoto actual ya contiene la línea base y el trigger aplicado
+anteriormente. Por eso, antes de ejecutar `supabase db push`, hay que revisar el
+estado con `supabase migration list` y confirmar qué migraciones se desean aplicar.
+El seeder [`supabase/seed.sql`](./supabase/seed.sql) se ejecuta después de invitar
+y crear en Auth al superadministrador `acanul353@gmail.com`; nunca contiene
+contraseñas.
 
 ## Roles y acceso
 
