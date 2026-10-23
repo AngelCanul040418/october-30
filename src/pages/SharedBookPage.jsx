@@ -302,6 +302,9 @@ function SharedBookPage() {
                     </div>
                   )}
                 </div>
+                {bookMetadata.description && (
+                  <p className="book-intro-description">{bookMetadata.description}</p>
+                )}
                 {canRead && (
                   <>
                     <button

@@ -6,6 +6,8 @@ import {
   Download,
   Maximize2,
   Minimize2,
+  PanelTopClose,
+  PanelTopOpen,
   X,
 } from 'lucide-react'
 
@@ -65,6 +67,7 @@ function BookReader({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fullscreenError, setFullscreenError] = useState('')
   const [pageWidth, setPageWidth] = useState(640)
+  const [showBookDetails, setShowBookDetails] = useState(true)
   const bookRef = useRef(null)
   const flipBookRef = useRef(null)
   const canGoNext = pageCount > 1 && pageNumber < pageCount
@@ -223,10 +226,20 @@ function BookReader({
           >
             {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
+          {!onClose && (bookSubtitle || bookDescription || bookAuthor) && (
+            <button
+              className="icon-button"
+              onClick={() => setShowBookDetails((visible) => !visible)}
+              aria-label={showBookDetails ? 'Ocultar descripción del libro' : 'Mostrar descripción del libro'}
+              title={showBookDetails ? 'Ocultar descripción' : 'Mostrar descripción'}
+            >
+              {showBookDetails ? <PanelTopClose size={18} /> : <PanelTopOpen size={18} />}
+            </button>
+          )}
         </div>
       </div>
 
-      {(bookSubtitle || bookDescription || bookAuthor) && !onClose && (
+      {(bookSubtitle || bookDescription || bookAuthor) && !onClose && showBookDetails && (
         <div className="shared-book-details">
           {bookSubtitle && <p className="shared-book-subtitle">{bookSubtitle}</p>}
           {bookAuthor && <p className="shared-book-author">Por {bookAuthor}</p>}
