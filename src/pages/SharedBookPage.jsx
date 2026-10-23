@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import { useLocation, useParams } from 'react-router-dom'
 import BookReader from '../components/BookReader.jsx'
 import ReaderAuthPanel from '../components/ReaderAuthPanel.jsx'
@@ -28,6 +28,7 @@ function SharedBookPage() {
   const [error, setError] = useState('')
   const [metadataResult, setMetadataResult] = useState(null)
   const [metadataError, setMetadataError] = useState(null)
+  const [showIntroDescription, setShowIntroDescription] = useState(true)
   const linkTitle = new URLSearchParams(location.search).get('title')?.trim() || 'Libro compartido'
   const isLegacyId = bookIdPattern.test(bookSlug ?? '')
   const isValidSlug = bookSlugPattern.test(bookSlug ?? '') && (bookSlug?.length ?? 0) <= 160
@@ -303,7 +304,20 @@ function SharedBookPage() {
                   )}
                 </div>
                 {bookMetadata.description && (
-                  <p className="book-intro-description">{bookMetadata.description}</p>
+                  <>
+                    <button
+                      className="book-intro-description-toggle"
+                      type="button"
+                      onClick={() => setShowIntroDescription((visible) => !visible)}
+                      aria-expanded={showIntroDescription}
+                    >
+                      {showIntroDescription ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      {showIntroDescription ? 'Ocultar descripción' : 'Ver descripción'}
+                    </button>
+                    {showIntroDescription && (
+                      <p className="book-intro-description">{bookMetadata.description}</p>
+                    )}
+                  </>
                 )}
                 {canRead && (
                   <>

@@ -619,12 +619,32 @@
 
 .book-intro-description {
   width: min(100%, 430px);
-  margin: 17px auto 0;
+  margin: 10px auto 0;
   color: #8a6d78;
   font-size: 12px;
   line-height: 1.6;
   text-align: center;
   white-space: pre-line;
+}
+
+.book-intro-description-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: -13px auto 0;
+  padding: 6px 11px;
+  border: 1px solid #efbfd0;
+  border-radius: 999px;
+  color: #ae4d70;
+  background: #fff7fa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.book-intro-description-toggle:hover {
+  background: #ffedf4;
 }
 
 .user-management-backlink:hover {
