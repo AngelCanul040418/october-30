@@ -452,24 +452,26 @@ function UserManagementPage() {
                             </span>
                           </td>
                           <td>
-                            <button
-                              className={`user-status-button${entry.is_active ? ' deactivate' : ''}`}
-                              type="button"
-                              onClick={() => toggleUserActive(entry)}
-                              disabled={savingUserId === entry.id}
-                            >
-                              <Power size={15} />
-                              {entry.is_active ? 'Desactivar' : 'Activar'}
-                            </button>
-                            <button
-                              className="user-delete-button"
-                              type="button"
-                              onClick={() => deleteUser(entry)}
-                              disabled={savingUserId === entry.id}
-                            >
-                              <Trash2 size={15} />
-                              Eliminar
-                            </button>
+                            <div className="user-actions">
+                              <button
+                                className={`user-status-button${entry.is_active ? ' deactivate' : ''}`}
+                                type="button"
+                                onClick={() => toggleUserActive(entry)}
+                                disabled={savingUserId === entry.id}
+                              >
+                                <Power size={15} />
+                                {entry.is_active ? 'Desactivar' : 'Activar'}
+                              </button>
+                              <button
+                                className="user-delete-button"
+                                type="button"
+                                onClick={() => deleteUser(entry)}
+                                disabled={savingUserId === entry.id}
+                              >
+                                <Trash2 size={15} />
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

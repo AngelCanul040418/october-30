@@ -846,12 +846,18 @@
   background: #f6f8f5;
 }
 
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 174px;
+}
+
 .user-delete-button {
   min-height: 32px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: 6px;
   padding: 0 9px;
   border: 1px solid #f0dfdc;
   border-radius: 7px;

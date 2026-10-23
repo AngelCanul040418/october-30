@@ -119,7 +119,7 @@ Deno.serve(async (request) => {
       if (targetUserError) throw targetUserError
       if (!targetUser.user) return jsonResponse({ error: 'No encontramos esa cuenta.' }, 404)
 
-      const { data: targetProfile, error: targetProfileError } = await serviceClient
+      let { data: targetProfile, error: targetProfileError } = await serviceClient
         .from('user_profiles')
         .select('role')
         .eq('user_id', targetUserId)
@@ -173,7 +173,16 @@ Deno.serve(async (request) => {
       .eq('user_id', targetUserId)
       .maybeSingle()
     if (targetProfileError) throw targetProfileError
-    if (!targetProfile) return jsonResponse({ error: 'No encontramos el perfil de esa cuenta.' }, 404)
+    if (!targetProfile && (action === 'set-active' || action === 'set-role')) {
+      const { error: profileError } = await serviceClient
+        .from('user_profiles')
+        .upsert({ user_id: targetUserId, role: action === 'set-role' ? body.role : 'reader' }, { onConflict: 'user_id' })
+      if (profileError) throw profileError
+      targetProfile = { role: action === 'set-role' ? body.role : 'reader' }
+    }
+    if (!targetProfile && action !== 'set-active' && action !== 'set-role') {
+      return jsonResponse({ error: 'No encontramos el perfil de esa cuenta.' }, 404)
+    }
 
     const mustKeepSuperAdmin = targetProfile.role === 'super_admin'
       && (
