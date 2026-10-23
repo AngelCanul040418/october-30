@@ -620,6 +620,7 @@
 .book-intro-description {
   width: min(100%, 430px);
   margin: 10px auto 0;
+  padding-bottom: 7px;
   color: #8a6d78;
   font-size: 12px;
   line-height: 1.6;
@@ -645,6 +646,11 @@
 
 .book-intro-description-toggle:hover {
   background: #ffedf4;
+}
+
+.book-intro-description + .book-intro-open,
+.book-intro-description-toggle + .book-intro-open {
+  margin-top: 12px;
 }
 
 .user-management-backlink:hover {
