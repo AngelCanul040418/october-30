@@ -130,6 +130,7 @@ function AdminPage({ audience = 'super_admin' }) {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [sendingReset, setSendingReset] = useState(false)
+  const [resetMessage, setResetMessage] = useState('')
   const [file, setFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -356,11 +357,12 @@ function AdminPage({ audience = 'super_admin' }) {
 
     setSendingReset(true)
     setError('')
+    setResetMessage('')
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/reset-password`,
     })
     if (resetError) setError(`No se pudo enviar el enlace de recuperación: ${resetError.message}`)
-    else setError('Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo y spam.')
+    else setResetMessage('Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo y spam.')
     setSendingReset(false)
   }
 
@@ -964,6 +966,7 @@ function AdminPage({ audience = 'super_admin' }) {
               </button>
             </form>
             {error && <p className="error-message" role="alert">{error}</p>}
+            {resetMessage && <p className="reader-auth-message" role="status">{resetMessage}</p>}
           </section>
         ) : isAuthor && audience === 'super_admin' ? (
           <Navigate to="/author" replace />
