@@ -226,24 +226,27 @@ function BookReader({
           >
             {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
-          {!onClose && (bookSubtitle || bookDescription || bookAuthor) && (
-            <button
-              className="icon-button"
-              onClick={() => setShowBookDetails((visible) => !visible)}
-              aria-label={showBookDetails ? 'Ocultar descripción del libro' : 'Mostrar descripción del libro'}
-              title={showBookDetails ? 'Ocultar descripción' : 'Mostrar descripción'}
-            >
-              {showBookDetails ? <PanelTopClose size={18} /> : <PanelTopOpen size={18} />}
-            </button>
-          )}
         </div>
       </div>
 
-      {(bookSubtitle || bookDescription || bookAuthor) && !onClose && showBookDetails && (
-        <div className="shared-book-details">
-          {bookSubtitle && <p className="shared-book-subtitle">{bookSubtitle}</p>}
-          {bookAuthor && <p className="shared-book-author">Por {bookAuthor}</p>}
-          {bookDescription && <p className="shared-book-description">{bookDescription}</p>}
+      {(bookSubtitle || bookDescription || bookAuthor) && !onClose && (
+        <div className={`shared-book-details${showBookDetails ? '' : ' is-collapsed'}`}>
+          <button
+            className="shared-book-details-toggle"
+            onClick={() => setShowBookDetails((visible) => !visible)}
+            aria-expanded={showBookDetails}
+            aria-label={showBookDetails ? 'Ocultar descripción del libro' : 'Mostrar descripción del libro'}
+          >
+            {showBookDetails ? <PanelTopClose size={16} /> : <PanelTopOpen size={16} />}
+            {showBookDetails ? 'Ocultar descripción' : 'Mostrar descripción'}
+          </button>
+          {showBookDetails && (
+            <div className="shared-book-details-content">
+              {bookSubtitle && <p className="shared-book-subtitle">{bookSubtitle}</p>}
+              {bookAuthor && <p className="shared-book-author">Por {bookAuthor}</p>}
+              {bookDescription && <p className="shared-book-description">{bookDescription}</p>}
+            </div>
+          )}
         </div>
       )}
 

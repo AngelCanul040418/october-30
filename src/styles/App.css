@@ -1499,6 +1499,33 @@
   background: #fff;
 }
 
+.shared-book-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  padding: 5px 9px;
+  border: 1px solid #f0cbd8;
+  border-radius: 8px;
+  color: #a14c6b;
+  background: #fff8fb;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.shared-book-details-toggle:hover {
+  background: #ffedf4;
+}
+
+.shared-book-details.is-collapsed {
+  padding-bottom: 8px;
+}
+
+.shared-book-details-content {
+  margin-top: 2px;
+}
+
 .shared-book-details p {
   margin: 0;
 }
