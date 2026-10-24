@@ -526,7 +526,6 @@ function AdminPage({ audience = 'super_admin' }) {
         description: description.trim(),
         author: author.trim(),
       }
-      await loadBooks()
       setFile(null)
       setCoverFile(null)
       setCoverPreview('')
@@ -537,6 +536,7 @@ function AdminPage({ audience = 'super_admin' }) {
       setAuthor('')
       setShareUrl('')
       setActiveView('dashboard')
+      await loadBooks()
     } catch (uploadError) {
       let message = uploadError.message
       if (uploadedPaths.length) {
