@@ -19,6 +19,17 @@ const FLIPPING_TIME = 1500
 const PINNED_EDGE_PAGE_COUNT = 3
 const ACTIVE_PAGE_CACHE_RADIUS = 4
 
+function destroyPdfResource(resource) {
+  if (!resource || typeof resource.destroy !== 'function') return
+
+  try {
+    const result = resource.destroy()
+    if (result && typeof result.catch === 'function') result.catch(() => {})
+  } catch {
+    // The viewer may already have disposed the resource during unmount.
+  }
+}
+
 function renderPage(pdf, pageNumber, width) {
   return pdf.getPage(pageNumber).then(async (page) => {
     const baseViewport = page.getViewport({ scale: 1 })
@@ -228,7 +239,7 @@ const PdfBook = forwardRef(function PdfBook(
     const assetCache = cacheRef.current
     const pageAssets = pageAssetsRef.current
     pdfDocumentRef.current = null
-    previousDocument?.destroy().catch(() => {})
+    destroyPdfResource(previousDocument)
 
     async function loadPdf() {
       try {
@@ -243,7 +254,7 @@ const PdfBook = forwardRef(function PdfBook(
         firstPage.cleanup()
 
         if (!active) {
-          await loadingTask.destroy()
+          destroyPdfResource(loadingTask)
           return
         }
 
@@ -274,10 +285,10 @@ const PdfBook = forwardRef(function PdfBook(
 
     return () => {
       active = false
-      if (loadingTask) loadingTask.destroy().catch(() => {})
+      destroyPdfResource(loadingTask)
       const loadedDocument = pdfDocumentRef.current
       pdfDocumentRef.current = null
-      if (loadedDocument) loadedDocument.destroy().catch(() => {})
+      destroyPdfResource(loadedDocument)
       pageAssets.clear()
       for (const assetPromise of assetCache.values()) {
         assetPromise.then((asset) => URL.revokeObjectURL(asset.url)).catch(() => {})
@@ -499,10 +510,8 @@ const PdfBook = forwardRef(function PdfBook(
 
   useEffect(() => () => {
     const flip = flipInstanceRef.current
-    if (flip) {
-      flip.destroy()
-      flipInstanceRef.current = null
-    }
+    destroyPdfResource(flip)
+    flipInstanceRef.current = null
   }, [])
 
   return (
