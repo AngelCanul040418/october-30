@@ -340,8 +340,8 @@ function AdminPage({ audience = 'super_admin' }) {
       })
       .then((loadedBooks) => {
         if (!active || !loadedBooks) return
-        if (active) setBooks(loadedBooks)
-        if (active) setError('')
+        setBooks(loadedBooks)
+        setError('')
       })
       .catch((loadError) => {
         if (active) setError(`No se pudieron cargar tus libros: ${loadError.message}`)

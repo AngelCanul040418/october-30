@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './styles/App.css'
 
 const AdminPage = lazy(() => import('./pages/AdminPage.jsx'))
+const BouquetPage = lazy(() => import('./pages/BouquetPage.jsx'))
 const ReaderLibraryPage = lazy(() => import('./pages/ReaderLibraryPage.jsx'))
 const SetPasswordPage = lazy(() => import('./pages/SetPasswordPage.jsx'))
 const SharedBookPage = lazy(() => import('./pages/SharedBookPage.jsx'))
@@ -30,6 +31,7 @@ function App() {
           <Route path="/books" element={<AdminPage audience="super_admin" />} />
           <Route path="/users" element={<UserManagementPage />} />
           <Route path="/book/:bookSlug" element={<SharedBookPage />} />
+          <Route path="/ramo" element={<BouquetPage />} />
           <Route path="/library" element={<ReaderLibraryPage />} />
           <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/reset-password" element={<SetPasswordPage />} />
