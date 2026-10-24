@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, Library, Trash2 } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
 import ReaderAuthPanel from '../components/ReaderAuthPanel.jsx'
@@ -25,6 +25,7 @@ function ReaderLibraryPage() {
   const [loadingBooks, setLoadingBooks] = useState(false)
   const [removingBookId, setRemovingBookId] = useState('')
   const [error, setError] = useState('')
+  const sessionUserIdRef = useRef('')
 
   useActiveSession(user, () => {
     setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
@@ -72,9 +73,13 @@ function ReaderLibraryPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) {
-        setUser(session?.user ?? null)
-        setRole('')
-        if (!session?.user) {
+        const nextUser = session?.user ?? null
+        if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+          sessionUserIdRef.current = nextUser?.id ?? ''
+          setUser(nextUser)
+          setRole('')
+        }
+        if (!nextUser) {
           setBooks([])
           setBooksUserId('')
           setLoadingBooks(false)
@@ -86,7 +91,11 @@ function ReaderLibraryPage() {
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
       if (sessionError) setError(`No se pudo comprobar la sesión: ${sessionError.message}`)
-      setUser(data.session?.user ?? null)
+      const nextUser = data.session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 

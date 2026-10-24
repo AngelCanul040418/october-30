@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import BookReader from '../components/BookReader.jsx'
@@ -30,6 +30,7 @@ function SharedBookPage() {
   const [metadataResult, setMetadataResult] = useState(null)
   const [metadataError, setMetadataError] = useState(null)
   const [showIntroDescription, setShowIntroDescription] = useState(true)
+  const sessionUserIdRef = useRef('')
   useActiveSession(user, () => {
     setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
   })
@@ -46,7 +47,11 @@ function SharedBookPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) {
-        setUser(session?.user ?? null)
+        const nextUser = session?.user ?? null
+        if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+          sessionUserIdRef.current = nextUser?.id ?? ''
+          setUser(nextUser)
+        }
         setCheckingSession(false)
       }
     })
@@ -54,7 +59,11 @@ function SharedBookPage() {
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
       if (sessionError) setError(`No se pudo comprobar la sesión: ${sessionError.message}`)
-      setUser(data.session?.user ?? null)
+      const nextUser = data.session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 

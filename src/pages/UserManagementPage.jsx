@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Power, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
@@ -30,6 +30,7 @@ function UserManagementPage() {
   const [inviteRole, setInviteRole] = useState('author')
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState('')
+  const sessionUserIdRef = useRef('')
 
   useActiveSession(user, () => {
     setError('Tu cuenta fue desactivada. Se cerró tu sesión; contacta al administrador si necesitas recuperar el acceso.')
@@ -72,15 +73,23 @@ function UserManagementPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return
-      setUser(session?.user ?? null)
-      setRole('')
+      const nextUser = session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+        setRole('')
+      }
       setCheckingSession(false)
     })
 
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
       if (sessionError) setError(`No se pudo comprobar la sesión: ${sessionError.message}`)
-      setUser(data.session?.user ?? null)
+      const nextUser = data.session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 

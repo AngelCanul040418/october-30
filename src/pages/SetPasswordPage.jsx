@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
@@ -15,6 +15,7 @@ function SetPasswordPage() {
   const [showPasswords, setShowPasswords] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const sessionUserIdRef = useRef('')
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -23,14 +24,22 @@ function SetPasswordPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return
-      setUser(session?.user ?? null)
+      const nextUser = session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
       if (sessionError) setError(`No se pudo comprobar el enlace: ${sessionError.message}`)
-      setUser(data.session?.user ?? null)
+      const nextUser = data.session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 

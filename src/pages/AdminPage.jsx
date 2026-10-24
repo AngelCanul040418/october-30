@@ -177,6 +177,7 @@ function AdminPage({ audience = 'super_admin' }) {
   const qrCodeRef = useRef(null)
   const editDialogRef = useRef(null)
   const qrDialogRef = useRef(null)
+  const sessionUserIdRef = useRef('')
   const currentRoleCheck = roleCheck?.userId === user?.id ? roleCheck : null
   const checkingRole = Boolean(user && !currentRoleCheck)
   const isSuperAdmin = currentRoleCheck?.role === 'super_admin'
@@ -276,8 +277,12 @@ function AdminPage({ audience = 'super_admin' }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (isMounted) {
-        setUser(session?.user ?? null)
-        if (!session?.user) {
+        const nextUser = session?.user ?? null
+        if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+          sessionUserIdRef.current = nextUser?.id ?? ''
+          setUser(nextUser)
+        }
+        if (!nextUser) {
           setRoleCheck(null)
         }
         setCheckingSession(false)
@@ -287,7 +292,11 @@ function AdminPage({ audience = 'super_admin' }) {
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!isMounted) return
       if (sessionError) setError(`No se pudo comprobar la sesión: ${sessionError.message}`)
-      setUser(data.session?.user ?? null)
+      const nextUser = data.session?.user ?? null
+      if (sessionUserIdRef.current !== (nextUser?.id ?? '')) {
+        sessionUserIdRef.current = nextUser?.id ?? ''
+        setUser(nextUser)
+      }
       setCheckingSession(false)
     })
 
@@ -340,8 +349,8 @@ function AdminPage({ audience = 'super_admin' }) {
       })
       .then((loadedBooks) => {
         if (!active || !loadedBooks) return
-        setBooks(loadedBooks)
-        setError('')
+        if (active) setBooks(loadedBooks)
+        if (active) setError('')
       })
       .catch((loadError) => {
         if (active) setError(`No se pudieron cargar tus libros: ${loadError.message}`)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Sparkles } from 'lucide-react'
 
-const BOOK_LINK = 'https://october-30-three.vercel.app/book/october-30'
+const BOOK_LINK = 'https://machape.site/book/october-30'
 
 function Gerbera({ className = '' }) {
   return (
